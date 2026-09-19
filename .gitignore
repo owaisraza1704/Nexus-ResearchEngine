@@ -1,0 +1,16 @@
+.DS_Store
+dump
+tmp
+specs
+architecture
+.venv
+.env
+.env.*
+!.env.example
+.data
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+*.egg-info
