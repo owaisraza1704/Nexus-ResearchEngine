@@ -20,17 +20,6 @@ Nexus will bring together:
 
 The long-term vision is a research assistant that can take a complex question, plan the investigation, gather evidence, validate its findings, and produce a trustworthy synthesis.
 
-## Product progression
-
-The platform will grow through deliberately scoped releases:
-
-1. Foundation — prepare documents and make their contents inspectable.
-2. MVP-1 — ask one question over one document and receive a cited answer.
-3. MVP-2 — compare and synthesize information across multiple documents.
-4. MVP-3 — support complex, multi-step research with validated execution.
-
-Each release must prove its value before the next layer of complexity is introduced.
-
 ## Guiding principles
 
 - Answers should be grounded in source evidence.
@@ -38,16 +27,3 @@ Each release must prove its value before the next layer of complexity is introdu
 - Gaps, contradictions, and uncertainty should be visible.
 - Research should remain controlled and inspectable as it becomes more capable.
 - Existing open-source tools and provider capabilities should be reused wherever appropriate.
-
-## Current status
-
-The project is currently in the planning and Foundation stage. The desired product direction is documented before the broader platform is built.
-
-Start with:
-
-- [Architecture synopsis](architecture/Agentic_RAG_Research_Platform_Synopsis.pdf)
-- [Coherent implementation plan](specs/05-implementation-plan.md)
-- [Release roadmap](specs/release-roadmap.md)
-- [MVP-1 specifications](specs/mvp1/)
-- [MVP-2 specifications](specs/mvp2/)
-- [MVP-3 specifications](specs/mvp3/)
