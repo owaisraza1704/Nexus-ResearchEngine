@@ -76,3 +76,31 @@ class Document(Base):
     ready_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class DocumentChunk(Base):
+    """One structure-aware chunk produced from an immutable document snapshot."""
+
+    __tablename__ = "document_chunks"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_id",
+            "sequence",
+            name="uq_document_chunks_document_sequence",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    locator: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

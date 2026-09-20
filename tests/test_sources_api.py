@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 from app.api import sources as sources_api
 from app.config import Settings
-from app.db.models import Document, Source
+from app.db.models import Document, DocumentChunk, Source
+from app.ingestion.docling_chunker import ChunkDraft
 from app.ingestion.docling_parser import DocumentHasNoText, ParsedBlock, ParsedDocument
 from app.main import app
 
@@ -15,18 +16,21 @@ class InMemorySession:
     def __init__(self) -> None:
         self.sources: dict[uuid.UUID, Source] = {}
         self.documents: dict[uuid.UUID, Document] = {}
+        self.chunks: dict[uuid.UUID, DocumentChunk] = {}
 
     def scalar(self, statement: Any) -> None:
         del statement
         return None
 
-    def add(self, value: Source | Document) -> None:
+    def add(self, value: Source | Document | DocumentChunk) -> None:
         if value.id is None:
             value.id = uuid.uuid4()
         if isinstance(value, Source):
             self.sources[value.id] = value
-        else:
+        elif isinstance(value, Document):
             self.documents[value.id] = value
+        else:
+            self.chunks[value.id] = value
 
     def commit(self) -> None:
         return None
@@ -79,7 +83,25 @@ def test_upload_source_persists_and_exposes_parsed_blocks(
         assert path.read_bytes() == b"document"
         return parsed
 
+    chunks = (
+        ChunkDraft(
+            sequence=0,
+            text="Heading",
+            locator={"headings": ["Research"], "doc_items": []},
+        ),
+        ChunkDraft(
+            sequence=1,
+            text="Body",
+            locator={"headings": ["Research"], "doc_items": []},
+        ),
+    )
+
+    def fake_chunk_document(value: ParsedDocument) -> tuple[ChunkDraft, ...]:
+        assert value is parsed
+        return chunks
+
     monkeypatch.setattr(sources_api, "parse_document", fake_parse_document)
+    monkeypatch.setattr(sources_api, "chunk_document", fake_chunk_document)
     app.dependency_overrides[sources_api.get_db] = lambda: db
     app.dependency_overrides[sources_api.get_settings] = lambda: settings
 
@@ -93,9 +115,13 @@ def test_upload_source_persists_and_exposes_parsed_blocks(
 
         assert response.status_code == 201
         payload = response.json()
-        assert payload["status"] == "parsed"
-        assert payload["document"]["status"] == "parsed"
+        assert payload["status"] == "ready"
+        assert payload["document"]["status"] == "ready"
         assert payload["document"]["block_count"] == 2
+        assert len(db.chunks) == 2
+        stored_chunks = sorted(db.chunks.values(), key=lambda chunk: chunk.sequence)
+        assert [chunk.text for chunk in stored_chunks] == ["Heading", "Body"]
+        assert stored_chunks[0].locator["headings"] == ["Research"]
 
         source_id = payload["source_id"]
         detail = client.get(f"/v1/sources/{source_id}")
@@ -103,6 +129,53 @@ def test_upload_source_persists_and_exposes_parsed_blocks(
         assert detail.status_code == 200
         assert detail.json()["normalized_text"] == "Heading\n\nBody"
         assert detail.json()["blocks"][0]["locator"]["page"] == 1
+        assert db.documents[next(iter(db.documents))].ready_at is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_upload_source_records_a_chunking_failure(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    db = InMemorySession()
+    settings = Settings(artifact_store_path=tmp_path)
+    parsed = ParsedDocument(
+        normalized_text="Body",
+        blocks=(
+            ParsedBlock(
+                text="Body",
+                label="text",
+                locator={"char_start": 0, "char_end": 4},
+            ),
+        ),
+        page_count=1,
+        parser_name="docling",
+        parser_version="test",
+    )
+
+    monkeypatch.setattr(sources_api, "parse_document", lambda path: parsed)
+
+    def fail_chunking(value: ParsedDocument) -> tuple[ChunkDraft, ...]:
+        del value
+        raise sources_api.DocumentChunkingError("chunking failed")
+
+    monkeypatch.setattr(sources_api, "chunk_document", fail_chunking)
+    app.dependency_overrides[sources_api.get_db] = lambda: db
+    app.dependency_overrides[sources_api.get_settings] = lambda: settings
+
+    try:
+        response = TestClient(app).post(
+            "/v1/sources/uploads",
+            files={"file": ("research.pdf", b"document", "application/pdf")},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "DOCUMENT_CHUNKING_FAILED"
+        assert len(db.documents) == 0
+        source = next(iter(db.sources.values()))
+        assert source.status == "failed"
+        assert source.error_code == "DOCUMENT_CHUNKING_FAILED"
     finally:
         app.dependency_overrides.clear()
 

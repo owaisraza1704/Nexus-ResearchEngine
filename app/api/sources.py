@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -8,9 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
-from app.db.models import Document, Source
+from app.db.models import Document, DocumentChunk, Source
 from app.db.session import get_db
 from app.ingestion.artifacts import store_artifact
+from app.ingestion.docling_chunker import DocumentChunkingError, chunk_document
 from app.ingestion.docling_parser import (
     DocumentHasNoText,
     DocumentParseError,
@@ -164,6 +166,7 @@ def upload_source(
                 f"The document exceeds the {settings.max_document_pages} page limit.",
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             )
+        chunks = chunk_document(parsed)
     except DocumentHasNoText as exc:
         _mark_source_failed(db, source, "DOCUMENT_HAS_NO_TEXT", str(exc))
         return _error_response(
@@ -175,6 +178,13 @@ def upload_source(
         _mark_source_failed(db, source, "DOCUMENT_PARSE_FAILED", str(exc))
         return _error_response(
             "DOCUMENT_PARSE_FAILED",
+            str(exc),
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
+    except DocumentChunkingError as exc:
+        _mark_source_failed(db, source, "DOCUMENT_CHUNKING_FAILED", str(exc))
+        return _error_response(
+            "DOCUMENT_CHUNKING_FAILED",
             str(exc),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
@@ -199,8 +209,21 @@ def upload_source(
     )
     db.add(document)
     db.flush()
+    for chunk in chunks:
+        db.add(
+            DocumentChunk(
+                document_id=document.id,
+                sequence=chunk.sequence,
+                text=chunk.text,
+                text_sha256=chunk.text_sha256,
+                locator=chunk.locator,
+            )
+        )
+
+    document.status = "ready"
+    document.ready_at = datetime.now(timezone.utc)
     source.current_document_id = document.id
-    source.status = "parsed"
+    source.status = "ready"
     db.commit()
     db.refresh(document)
 
