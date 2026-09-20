@@ -16,6 +16,8 @@ dependencies = [
     "pydantic-settings>=2.6,<3",
     "sqlalchemy>=2.0,<3",
     "uvicorn[standard]>=0.32,<1",
+    "openai>=1,<2",
+    "python-dotenv>=1,<2",
 ]
 
 [project.optional-dependencies]

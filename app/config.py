@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     artifact_store_path: Path = Path(".data/artifacts")
     max_upload_bytes: int = 20 * 1024 * 1024
     max_document_pages: int = 100
+    azure_openai_endpoint: str | None = None
+    azure_openai_api_key: str | None = None
+    azure_openai_api_version: str | None = None
+    azure_openai_embedding_deployment: str | None = None
+    azure_openai_embedding_dimensions: int = 3072
 
     model_config = SettingsConfigDict(
         env_file=".env",
