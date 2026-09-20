@@ -9,8 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
-from app.db.models import Document, DocumentChunk, Source
+from app.db.models import ChunkEmbedding, Document, DocumentChunk, Source
 from app.db.session import get_db
+from app.embeddings.azure_openai import (
+    AzureEmbeddingConfigurationError,
+    AzureEmbeddingError,
+    embed_texts,
+)
 from app.ingestion.artifacts import store_artifact
 from app.ingestion.docling_chunker import DocumentChunkingError, chunk_document
 from app.ingestion.docling_parser import (
@@ -167,6 +172,7 @@ def upload_source(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             )
         chunks = chunk_document(parsed)
+        embeddings = embed_texts([chunk.text for chunk in chunks], settings)
     except DocumentHasNoText as exc:
         _mark_source_failed(db, source, "DOCUMENT_HAS_NO_TEXT", str(exc))
         return _error_response(
@@ -185,6 +191,13 @@ def upload_source(
         _mark_source_failed(db, source, "DOCUMENT_CHUNKING_FAILED", str(exc))
         return _error_response(
             "DOCUMENT_CHUNKING_FAILED",
+            str(exc),
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
+    except (AzureEmbeddingConfigurationError, AzureEmbeddingError) as exc:
+        _mark_source_failed(db, source, "DOCUMENT_EMBEDDING_FAILED", str(exc))
+        return _error_response(
+            "DOCUMENT_EMBEDDING_FAILED",
             str(exc),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
@@ -209,14 +222,28 @@ def upload_source(
     )
     db.add(document)
     db.flush()
+    stored_chunks: list[DocumentChunk] = []
     for chunk in chunks:
+        stored_chunk = DocumentChunk(
+            document_id=document.id,
+            sequence=chunk.sequence,
+            text=chunk.text,
+            text_sha256=chunk.text_sha256,
+            locator=chunk.locator,
+        )
+        db.add(stored_chunk)
+        stored_chunks.append(stored_chunk)
+
+    db.flush()
+    for stored_chunk, embedding in zip(stored_chunks, embeddings, strict=True):
         db.add(
-            DocumentChunk(
-                document_id=document.id,
-                sequence=chunk.sequence,
-                text=chunk.text,
-                text_sha256=chunk.text_sha256,
-                locator=chunk.locator,
+            ChunkEmbedding(
+                chunk_id=stored_chunk.id,
+                provider="azure_openai",
+                deployment=embedding.deployment,
+                model=embedding.model,
+                dimensions=len(embedding.vector),
+                embedding=list(embedding.vector),
             )
         )
 

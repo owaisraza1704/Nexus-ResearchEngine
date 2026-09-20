@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from openai import AzureOpenAI
@@ -17,13 +18,23 @@ class AzureEmbeddingError(RuntimeError):
 class EmbeddingResult:
     vector: tuple[float, ...]
     model: str
+    deployment: str
     prompt_tokens: int | None
 
 
 def embed_text(text: str, settings: Settings) -> EmbeddingResult:
     """Create one embedding using the configured Azure OpenAI deployment."""
 
-    if not text.strip():
+    return embed_texts([text], settings)[0]
+
+
+def embed_texts(texts: Sequence[str], settings: Settings) -> tuple[EmbeddingResult, ...]:
+    """Create embeddings for a batch of texts using Azure OpenAI."""
+
+    text_values = tuple(texts)
+    if not text_values:
+        raise ValueError("Cannot embed an empty batch")
+    if any(not text.strip() for text in text_values):
         raise ValueError("Cannot embed empty text")
 
     endpoint = _required_setting(settings.azure_openai_endpoint, "azure_openai_endpoint")
@@ -43,25 +54,42 @@ def embed_text(text: str, settings: Settings) -> EmbeddingResult:
             azure_endpoint=endpoint,
             api_version=api_version,
         )
-        response = client.embeddings.create(input=[text], model=deployment)
-        embedding = tuple(float(value) for value in response.data[0].embedding)
+        response = client.embeddings.create(input=list(text_values), model=deployment)
+        response_data = list(response.data)
     except Exception as exc:
         raise AzureEmbeddingError("Azure OpenAI embedding request failed") from exc
 
-    if len(embedding) != settings.azure_openai_embedding_dimensions:
+    if len(response_data) != len(text_values):
         raise AzureEmbeddingError(
-            "Azure OpenAI returned an unexpected embedding dimension: "
-            f"expected {settings.azure_openai_embedding_dimensions}, got {len(embedding)}"
+            "Azure OpenAI returned an unexpected number of embeddings: "
+            f"expected {len(text_values)}, got {len(response_data)}"
         )
 
+    if all(getattr(item, "index", None) is not None for item in response_data):
+        response_data.sort(key=lambda item: item.index)
+
     usage = getattr(response, "usage", None)
-    prompt_tokens = getattr(usage, "prompt_tokens", None)
     model = str(getattr(response, "model", deployment))
-    return EmbeddingResult(
-        vector=embedding,
-        model=model,
-        prompt_tokens=prompt_tokens,
-    )
+    prompt_tokens = getattr(usage, "prompt_tokens", None) if len(text_values) == 1 else None
+
+    results: list[EmbeddingResult] = []
+    for item in response_data:
+        embedding = tuple(float(value) for value in item.embedding)
+        if len(embedding) != settings.azure_openai_embedding_dimensions:
+            raise AzureEmbeddingError(
+                "Azure OpenAI returned an unexpected embedding dimension: "
+                f"expected {settings.azure_openai_embedding_dimensions}, got {len(embedding)}"
+            )
+        results.append(
+            EmbeddingResult(
+                vector=embedding,
+                model=model,
+                deployment=deployment,
+                prompt_tokens=prompt_tokens,
+            )
+        )
+
+    return tuple(results)
 
 
 def _required_setting(value: str | None, name: str) -> str:

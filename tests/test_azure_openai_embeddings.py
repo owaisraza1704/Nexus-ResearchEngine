@@ -51,7 +51,35 @@ def test_embed_text_maps_azure_sdk_request_and_response(
     assert calls["input"] == ["research text"]
     assert result.vector == (0.1, 0.2, 0.3)
     assert result.model == "embedding-large"
+    assert result.deployment == "embedding-large"
     assert result.prompt_tokens == 4
+
+
+def test_embed_texts_sorts_batch_results_by_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeAzureOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+            self.embeddings = SimpleNamespace(
+                create=lambda **kwargs: SimpleNamespace(
+                    data=[
+                        SimpleNamespace(index=1, embedding=[0.4, 0.5, 0.6]),
+                        SimpleNamespace(index=0, embedding=[0.1, 0.2, 0.3]),
+                    ],
+                    model="embedding-large",
+                    usage=None,
+                )
+            )
+
+    monkeypatch.setattr(azure_openai, "AzureOpenAI", FakeAzureOpenAI)
+
+    results = azure_openai.embed_texts(["first", "second"], _settings())
+
+    assert [result.vector for result in results] == [
+        (0.1, 0.2, 0.3),
+        (0.4, 0.5, 0.6),
+    ]
 
 
 def test_embed_text_requires_azure_settings() -> None:
