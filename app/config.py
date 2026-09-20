@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+psycopg://nexus:nexus@localhost:5432/nexus"
     artifact_store_path: Path = Path(".data/artifacts")
+    max_upload_bytes: int = 20 * 1024 * 1024
+    max_document_pages: int = 100
 
     model_config = SettingsConfigDict(
         env_file=".env",

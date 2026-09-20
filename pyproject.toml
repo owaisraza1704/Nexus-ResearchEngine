@@ -6,10 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "nexus-research-engine"
 version = "0.1.0"
 description = "A source-grounded research engine."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "alembic>=1.13,<2",
+    "docling>=2.129,<3",
     "fastapi>=0.115,<1",
+    "python-multipart>=0.0.20,<1",
     "psycopg[binary]>=3.2,<4",
     "pydantic-settings>=2.6,<3",
     "sqlalchemy>=2.0,<3",
@@ -32,7 +34,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
