@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -36,6 +36,8 @@ class ParsedDocument:
     page_count: int | None
     parser_name: str
     parser_version: str
+    # Kept in memory so native Docling features can reuse the same conversion.
+    native_document: Any | None = field(default=None, repr=False, compare=False)
 
     @property
     def normalized_text_sha256(self) -> str:
@@ -96,6 +98,7 @@ def parse_document(path: Path) -> ParsedDocument:
         page_count=page_count,
         parser_name="docling",
         parser_version=_docling_version(),
+        native_document=document,
     )
 
 

@@ -73,6 +73,7 @@ def test_parse_document_normalizes_text_and_preserves_provenance(
     assert parsed.page_count == 1
     assert parsed.parser_name == "docling"
     assert len(parsed.blocks) == 2
+    assert parsed.native_document is document
     assert parsed.blocks[0].locator["page"] == 1
     assert parsed.blocks[0].locator["char_start"] == 0
     assert parsed.blocks[1].locator["char_start"] == len("Heading\n\n")
