@@ -139,21 +139,30 @@ def upload_source(
 
     artifact = store_artifact(settings.artifact_store_path, filename, content)
     duplicate = db.scalar(select(Source).where(Source.content_sha256 == artifact.content_sha256))
-    if duplicate is not None:
+    if duplicate is not None and duplicate.status != "failed":
         return _error_response(
             "SOURCE_ALREADY_EXISTS",
             "A source with the same file content already exists.",
             status_code=status.HTTP_409_CONFLICT,
         )
 
-    source = Source(
-        display_name=(display_name or filename).strip()[:200] or filename,
-        original_filename=filename[:255],
-        kind="upload",
-        status="processing",
-        content_sha256=artifact.content_sha256,
-    )
-    db.add(source)
+    if duplicate is None:
+        source = Source(
+            display_name=(display_name or filename).strip()[:200] or filename,
+            original_filename=filename[:255],
+            kind="upload",
+            status="processing",
+            content_sha256=artifact.content_sha256,
+        )
+        db.add(source)
+    else:
+        source = duplicate
+        source.display_name = (display_name or filename).strip()[:200] or filename
+        source.original_filename = filename[:255]
+        source.status = "processing"
+        source.error_code = None
+        source.error_detail = None
+
     db.commit()
     db.refresh(source)
 

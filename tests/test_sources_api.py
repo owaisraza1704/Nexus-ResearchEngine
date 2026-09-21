@@ -19,10 +19,11 @@ class InMemorySession:
         self.documents: dict[uuid.UUID, Document] = {}
         self.chunks: dict[uuid.UUID, DocumentChunk] = {}
         self.embeddings: dict[uuid.UUID, ChunkEmbedding] = {}
+        self.duplicate_source: Source | None = None
 
-    def scalar(self, statement: Any) -> None:
+    def scalar(self, statement: Any) -> Source | None:
         del statement
-        return None
+        return self.duplicate_source
 
     def add(self, value: Source | Document | DocumentChunk | ChunkEmbedding) -> None:
         if value.id is None:
@@ -165,6 +166,101 @@ def test_upload_source_persists_and_exposes_parsed_blocks(
         assert detail.json()["normalized_text"] == "Heading\n\nBody"
         assert detail.json()["blocks"][0]["locator"]["page"] == 1
         assert db.documents[next(iter(db.documents))].ready_at is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_upload_source_retries_a_failed_source(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    db = InMemorySession()
+    settings = Settings(artifact_store_path=tmp_path)
+    failed_source = Source(
+        display_name="Research source",
+        original_filename="research.pdf",
+        kind="upload",
+        status="failed",
+        content_sha256="a" * 64,
+        error_code="DOCUMENT_PARSE_FAILED",
+        error_detail="previous parse failure",
+    )
+    failed_source.id = uuid.uuid4()
+    db.sources[failed_source.id] = failed_source
+    db.duplicate_source = failed_source
+
+    parsed = ParsedDocument(
+        normalized_text="Body",
+        blocks=(
+            ParsedBlock(
+                text="Body",
+                label="text",
+                locator={"char_start": 0, "char_end": 4},
+            ),
+        ),
+        page_count=1,
+        parser_name="docling",
+        parser_version="test",
+    )
+    chunk = ChunkDraft(sequence=0, text="Body", locator={"doc_items": []})
+    embedding = EmbeddingResult(
+        vector=(0.1, 0.2, 0.3),
+        model="embedding-large",
+        deployment="embedding-large",
+        prompt_tokens=None,
+    )
+
+    monkeypatch.setattr(sources_api, "parse_document", lambda path: parsed)
+    monkeypatch.setattr(sources_api, "chunk_document", lambda value: (chunk,))
+    monkeypatch.setattr(sources_api, "embed_texts", lambda values, value_settings: (embedding,))
+    app.dependency_overrides[sources_api.get_db] = lambda: db
+    app.dependency_overrides[sources_api.get_settings] = lambda: settings
+
+    try:
+        response = TestClient(app).post(
+            "/v1/sources/uploads",
+            files={"file": ("research.pdf", b"document", "application/pdf")},
+        )
+
+        assert response.status_code == 201
+        assert response.json()["source_id"] == str(failed_source.id)
+        assert response.json()["status"] == "ready"
+        assert len(db.sources) == 1
+        assert failed_source.status == "ready"
+        assert failed_source.error_code is None
+        assert failed_source.error_detail is None
+        assert failed_source.current_document_id is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_upload_source_rejects_a_ready_duplicate(
+    tmp_path: Path,
+) -> None:
+    db = InMemorySession()
+    settings = Settings(artifact_store_path=tmp_path)
+    ready_source = Source(
+        display_name="Research source",
+        original_filename="research.pdf",
+        kind="upload",
+        status="ready",
+        content_sha256="a" * 64,
+    )
+    ready_source.id = uuid.uuid4()
+    db.sources[ready_source.id] = ready_source
+    db.duplicate_source = ready_source
+    app.dependency_overrides[sources_api.get_db] = lambda: db
+    app.dependency_overrides[sources_api.get_settings] = lambda: settings
+
+    try:
+        response = TestClient(app).post(
+            "/v1/sources/uploads",
+            files={"file": ("research.pdf", b"document", "application/pdf")},
+        )
+
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "SOURCE_ALREADY_EXISTS"
+        assert len(db.documents) == 0
     finally:
         app.dependency_overrides.clear()
 
