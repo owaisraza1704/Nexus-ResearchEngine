@@ -1,0 +1,55 @@
+{
+  "source_content_sha256": "e3722e2797495532e62a6602b566bb2e626faa0369bcef190283a40593be6ea5",
+  "cases": [
+    {
+      "id": "objective",
+      "question": "What is the primary objective of the proposed research platform?",
+      "relevant_sequences": [2]
+    },
+    {
+      "id": "research_workflow",
+      "question": "How does the platform turn a user's research requirement into a cited report?",
+      "relevant_sequences": [7]
+    },
+    {
+      "id": "complex_research_requirements",
+      "question": "Why does complex research need more than a simple RAG chatbot?",
+      "relevant_sequences": [10, 11]
+    },
+    {
+      "id": "central_contribution",
+      "question": "What is the central contribution of the platform beyond basic RAG?",
+      "relevant_sequences": [52]
+    },
+    {
+      "id": "retrieval_signals",
+      "question": "How does the retrieval layer combine lexical and semantic signals?",
+      "relevant_sequences": [30, 31]
+    },
+    {
+      "id": "evidence_provenance",
+      "question": "How should evidence provenance flow from a source to a report citation?",
+      "relevant_sequences": [32, 33, 34]
+    },
+    {
+      "id": "planner_role",
+      "question": "What is the role of the planner in the research platform?",
+      "relevant_sequences": [27]
+    },
+    {
+      "id": "parallel_execution",
+      "question": "How does the task graph support parallel execution?",
+      "relevant_sequences": [29]
+    },
+    {
+      "id": "initial_scope",
+      "question": "What functionality belongs in the initial implementation scope?",
+      "relevant_sequences": [38]
+    },
+    {
+      "id": "quality_evaluation",
+      "question": "How should research quality be evaluated?",
+      "relevant_sequences": [44, 47]
+    }
+  ]
+}
