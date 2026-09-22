@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from app.config import Settings
+from app.db.models import ChunkEmbedding
 from app.embeddings.azure_openai import EmbeddingResult
 from app.retrieval import vector_search
 from app.retrieval.vector_search import RetrievedChunk, search_chunks
@@ -106,6 +107,27 @@ def test_search_chunks_rejects_unexpected_query_dimensions() -> None:
             source_ids=(uuid4(),),
             settings=_settings(),
         )
+
+
+def test_search_chunks_passes_a_pgvector_compatible_query_vector() -> None:
+    db = RecordingSession()
+
+    search_chunks(
+        db,
+        query_vector=(0.1, 0.2, 0.3),
+        source_ids=(uuid4(),),
+        settings=_settings(),
+    )
+
+    compiled = db.statement.compile(dialect=postgresql.dialect())
+    query_vector = compiled.params["embedding_1"]
+    processor = ChunkEmbedding.__table__.c.embedding.type.bind_processor(
+        postgresql.dialect()
+    )
+
+    assert isinstance(query_vector, list)
+    assert processor is not None
+    assert processor(query_vector) == "[0.1,0.2,0.3]"
 
 
 def test_retrieve_question_embeds_text_before_searching(

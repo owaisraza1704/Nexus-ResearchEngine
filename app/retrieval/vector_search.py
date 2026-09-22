@@ -41,7 +41,7 @@ def search_chunks(
     if not selected_source_ids:
         return ()
 
-    vector = tuple(float(value) for value in query_vector)
+    vector = [float(value) for value in query_vector]
     expected_dimensions = settings.azure_openai_embedding_dimensions
     if len(vector) != expected_dimensions:
         raise ValueError(
