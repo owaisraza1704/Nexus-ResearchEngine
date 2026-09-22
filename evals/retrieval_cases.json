@@ -14,7 +14,7 @@
     {
       "id": "complex_research_requirements",
       "question": "Why does complex research need more than a simple RAG chatbot?",
-      "relevant_sequences": [10, 11]
+      "relevant_sequences": [6, 9, 10, 11, 52]
     },
     {
       "id": "central_contribution",
@@ -29,7 +29,7 @@
     {
       "id": "evidence_provenance",
       "question": "How should evidence provenance flow from a source to a report citation?",
-      "relevant_sequences": [32, 33, 34]
+      "relevant_sequences": [22, 25, 32, 33, 34, 41]
     },
     {
       "id": "planner_role",
@@ -44,12 +44,62 @@
     {
       "id": "initial_scope",
       "question": "What functionality belongs in the initial implementation scope?",
-      "relevant_sequences": [38]
+      "relevant_sequences": [38, 49]
     },
     {
       "id": "quality_evaluation",
       "question": "How should research quality be evaluated?",
       "relevant_sequences": [44, 47]
+    },
+    {
+      "id": "core_technologies",
+      "question": "Which technologies are named in the platform's core technology stack?",
+      "relevant_sequences": [3]
+    },
+    {
+      "id": "engineering_themes",
+      "question": "What engineering themes guide this project?",
+      "relevant_sequences": [4]
+    },
+    {
+      "id": "research_capabilities",
+      "question": "What capabilities are listed for accepting inputs, ingesting documents and web content, decomposing queries, executing tasks in parallel, and hybrid retrieval?",
+      "relevant_sequences": [12]
+    },
+    {
+      "id": "system_architecture",
+      "question": "What major components are shown in the end-to-end system diagram, from the FastAPI application to the grounded research report?",
+      "relevant_sequences": [15, 16]
+    },
+    {
+      "id": "request_inputs",
+      "question": "What can a research request contain?",
+      "relevant_sequences": [17]
+    },
+    {
+      "id": "evidence_to_report",
+      "question": "What happens after evidence is collected before the result is returned?",
+      "relevant_sequences": [23, 24, 25, 26]
+    },
+    {
+      "id": "planner_implementation",
+      "question": "What is the initial implementation plan for the research planner?",
+      "relevant_sequences": [39]
+    },
+    {
+      "id": "async_execution_plan",
+      "question": "What work is planned for asynchronous task execution?",
+      "relevant_sequences": [40]
+    },
+    {
+      "id": "caching_and_performance",
+      "question": "How will caching and performance be measured?",
+      "relevant_sequences": [42, 43]
+    },
+    {
+      "id": "risk_mitigation",
+      "question": "What are the main risks and mitigations for retrieval and synthesis?",
+      "relevant_sequences": [46]
     }
   ]
 }
