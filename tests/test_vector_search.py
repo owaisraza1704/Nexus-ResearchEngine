@@ -5,7 +5,9 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from app.config import Settings
-from app.retrieval.vector_search import search_chunks
+from app.embeddings.azure_openai import EmbeddingResult
+from app.retrieval import vector_search
+from app.retrieval.vector_search import RetrievedChunk, search_chunks
 
 
 class RecordingSession:
@@ -104,3 +106,71 @@ def test_search_chunks_rejects_unexpected_query_dimensions() -> None:
             source_ids=(uuid4(),),
             settings=_settings(),
         )
+
+
+def test_retrieve_question_embeds_text_before_searching(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_id = uuid4()
+    settings = _settings()
+    database = RecordingSession()
+    embedding = EmbeddingResult(
+        vector=(0.1, 0.2, 0.3),
+        model="embedding-large",
+        deployment="embedding-large",
+        prompt_tokens=5,
+    )
+    retrieved = (
+        RetrievedChunk(
+            chunk_id=uuid4(),
+            document_id=uuid4(),
+            source_id=source_id,
+            sequence=0,
+            text="Relevant chunk",
+            locator={"page": 1},
+            cosine_distance=0.2,
+        ),
+    )
+    calls: dict[str, object] = {}
+
+    def fake_embed_text(value: str, value_settings: Settings) -> EmbeddingResult:
+        calls["question"] = value
+        calls["embedding_settings"] = value_settings
+        return embedding
+
+    def fake_search_chunks(
+        value_db,
+        query_vector,
+        value_source_ids,
+        value_settings,
+        *,
+        top_k: int,
+    ) -> tuple[RetrievedChunk, ...]:
+        calls["db"] = value_db
+        calls["query_vector"] = query_vector
+        calls["source_ids"] = value_source_ids
+        calls["search_settings"] = value_settings
+        calls["top_k"] = top_k
+        return retrieved
+
+    monkeypatch.setattr(vector_search, "embed_text", fake_embed_text)
+    monkeypatch.setattr(vector_search, "search_chunks", fake_search_chunks)
+
+    results = vector_search.retrieve_question(
+        database,
+        "What is the project objective?",
+        (source_id,),
+        settings,
+        top_k=3,
+    )
+
+    assert results == retrieved
+    assert calls == {
+        "question": "What is the project objective?",
+        "embedding_settings": settings,
+        "db": database,
+        "query_vector": embedding.vector,
+        "source_ids": (source_id,),
+        "search_settings": settings,
+        "top_k": 3,
+    }

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db.models import ChunkEmbedding, Document, DocumentChunk, Source
+from app.embeddings.azure_openai import embed_text
 
 
 @dataclass(frozen=True)
@@ -90,4 +91,24 @@ def search_chunks(
             cosine_distance=float(row.cosine_distance),
         )
         for row in rows
+    )
+
+
+def retrieve_question(
+    db: Session,
+    question: str,
+    source_ids: Sequence[UUID],
+    settings: Settings,
+    *,
+    top_k: int = 5,
+) -> tuple[RetrievedChunk, ...]:
+    """Embed one question and return its nearest ready chunks."""
+
+    query_embedding = embed_text(question, settings)
+    return search_chunks(
+        db,
+        query_embedding.vector,
+        source_ids,
+        settings,
+        top_k=top_k,
     )
