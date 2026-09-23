@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str | None = None
     azure_openai_api_key: str | None = None
     azure_openai_api_version: str | None = None
+    azure_openai_model: str | None = None
     azure_openai_embedding_deployment: str | None = None
     azure_openai_embedding_dimensions: int = 3072
 
