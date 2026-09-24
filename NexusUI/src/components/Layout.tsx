@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router';
+'use client';
+
+import { useState, useEffect, type ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import CommandPalette from './CommandPalette';
+import { useResearch } from './ResearchStore';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
-export default function Layout() {
+export default function Layout({ children }: { children: ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false);
+  const research = useResearch();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -18,10 +23,15 @@ export default function Layout() {
   }, []);
 
   return (
-    <div style={{ display: 'flex', height: '100%', background: '#0c0c0e', overflow: 'hidden' }}>
+    <div className="workspace-shell" style={{ display: 'flex', height: '100dvh', background: '#0c0c0e', overflow: 'hidden' }}>
       <Sidebar onCmd={() => setCmdOpen(true)} />
-      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <Outlet />
+      <main style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <header className="workspace-header">
+          <Link href="/research" aria-label="Back to all research" className="workspace-back"><ArrowLeft size={15} /></Link>
+          <span className="workspace-title">{research.title}</span>
+          <span className="local-badge">Local UI preview</span>
+        </header>
+        {children}
       </main>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>

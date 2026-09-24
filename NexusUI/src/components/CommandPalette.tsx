@@ -1,26 +1,33 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router';
-import { Search, Brain, FileText, Zap, BarChart2, GitBranch, FlaskConical, Settings, Layers, ArrowRight } from 'lucide-react';
+'use client';
 
-const COMMANDS = [
-  { label: 'New Research', icon: Brain, to: '/', group: 'Actions', shortcut: 'N' },
-  { label: 'Upload Source', icon: FileText, to: '/sources', group: 'Actions', shortcut: 'U' },
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search, Brain, Zap, GitBranch, FlaskConical, Settings, Layers, ArrowRight } from 'lucide-react';
+import { useResearch } from './ResearchStore';
+
+const SCOPED_COMMANDS = [
   { label: 'Search Sources', icon: Search, to: '/sources', group: 'Navigate' },
-  { label: 'Research Runs', icon: Zap, to: '/jobs', group: 'Navigate' },
+  { label: 'Research Runs', icon: Zap, to: '/runs', group: 'Navigate' },
   { label: 'Evidence Explorer', icon: Search, to: '/evidence', group: 'Navigate' },
   { label: 'Reports', icon: Layers, to: '/reports', group: 'Navigate' },
   { label: 'Research Graph', icon: GitBranch, to: '/graph', group: 'Navigate' },
   { label: 'Evaluation', icon: FlaskConical, to: '/evaluation', group: 'Navigate' },
   { label: 'Settings', icon: Settings, to: '/settings', group: 'Navigate' },
-];
+] as const;
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
-  const navigate = useNavigate();
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const research = useResearch();
+  const commands = [
+    { label: 'All research', icon: Layers, to: '/research' as const, group: 'Navigate' },
+    { label: 'New Research', icon: Brain, to: '/research/new' as const, group: 'Actions' },
+    ...SCOPED_COMMANDS.map(command => ({ ...command, to: `/research/${research.id}${command.to}` as const })),
+  ];
 
-  const filtered = COMMANDS.filter(c =>
+  const filtered = commands.filter(c =>
     query === '' || c.label.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -39,13 +46,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       if (e.key === 'ArrowDown') { e.preventDefault(); setSelected(s => Math.min(s + 1, filtered.length - 1)); }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSelected(s => Math.max(s - 1, 0)); }
       if (e.key === 'Enter' && filtered[selected]) {
-        navigate(filtered[selected].to);
+        router.push(filtered[selected].to);
         onClose();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, selected, filtered, navigate, onClose]);
+  }, [open, selected, filtered, router, onClose]);
 
   if (!open) return null;
 
@@ -63,7 +70,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     >
       <div
         style={{
-          width: 560, background: '#17171d',
+          width: 560, maxWidth: 'calc(100vw - 32px)', background: '#17171d',
           border: '1px solid #2c2c3a', borderRadius: 10,
           overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
         }}
@@ -112,7 +119,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                   <button
                     key={cmd.label}
                     onMouseEnter={() => setSelected(globalIdx)}
-                    onClick={() => { navigate(cmd.to); onClose(); }}
+                    onClick={() => { router.push(cmd.to); onClose(); }}
                     style={{
                       width: '100%', padding: '8px 16px',
                       background: globalIdx === selected ? 'rgba(59,158,255,0.08)' : 'transparent',

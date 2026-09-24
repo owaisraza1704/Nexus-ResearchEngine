@@ -1,31 +1,39 @@
+'use client';
+
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Search, FileText, Layers, Brain, BarChart2, GitBranch,
   FlaskConical, Settings, ChevronLeft, ChevronRight,
   Zap, ChevronsUpDown, User, Plus
 } from 'lucide-react';
+import { useResearch } from './ResearchStore';
 
 const NAV = [
-  { label: 'Research', to: '/', icon: Brain, exact: true },
+  { label: 'Research', to: '', icon: Brain },
   { label: 'Sources', to: '/sources', icon: FileText },
-  { label: 'Research Runs', to: '/jobs', icon: Zap },
+  { label: 'Research Runs', to: '/runs', icon: Zap },
   { label: 'Evidence', to: '/evidence', icon: Search },
   { label: 'Reports', to: '/reports', icon: Layers },
   { label: 'Research Graph', to: '/graph', icon: GitBranch },
   { label: 'Evaluation', to: '/evaluation', icon: FlaskConical },
-];
+] as const;
 
 const BOTTOM = [
   { label: 'Settings', to: '/settings', icon: Settings },
-];
+] as const;
 
 export default function Sidebar({ onCmd }: { onCmd: () => void }) {
   const [collapsed, setCollapsed] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
+  const pathname = usePathname();
+  const research = useResearch();
+  const base = `/research/${research.id}` as const;
 
   return (
     <aside
+      className="research-sidebar"
       style={{
         width: collapsed ? 56 : 224,
         transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)',
@@ -56,7 +64,7 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
           <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: -0.5 }}>N</span>
         </div>
         {!collapsed && (
-          <div>
+          <div className="sidebar-wordmark">
             <div style={{ fontWeight: 700, fontSize: 13.5, letterSpacing: -0.3, color: '#f0ede8', lineHeight: 1 }}>
               NEXUS
             </div>
@@ -69,13 +77,13 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
 
       {/* Workspace switcher */}
       {!collapsed && (
-        <div style={{ padding: '8px 10px', borderBottom: '1px solid #1e1e26', flexShrink: 0 }}>
-          <button style={{
+        <div className="sidebar-workspace-switcher" style={{ padding: '8px 10px', borderBottom: '1px solid #1e1e26', flexShrink: 0 }}>
+          <Link href="/research" aria-label="All research" style={{
             width: '100%', padding: '6px 8px',
             background: '#1e1e27', border: '1px solid #2c2c3a',
             borderRadius: 5, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            color: '#f0ede8',
+            color: '#f0ede8', textDecoration: 'none',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <div style={{
@@ -83,10 +91,10 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
                 background: '#3b9eff22', border: '1px solid #3b9eff44',
                 fontSize: 9, color: '#3b9eff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
               }}>R</div>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>Research Lab</span>
+              <span style={{ fontSize: 12, fontWeight: 500 }}>All research</span>
             </div>
             <ChevronsUpDown size={12} color="#55535d" />
-          </button>
+          </Link>
         </div>
       )}
 
@@ -95,7 +103,8 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
         {/* New research shortcut */}
         <div style={{ padding: collapsed ? '4px 8px' : '4px 10px', marginBottom: 4 }}>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => router.push('/research/new')}
+            aria-label="New Research"
             style={{
               width: '100%', padding: collapsed ? '7px' : '7px 10px',
               background: 'linear-gradient(135deg, rgba(59,158,255,0.12) 0%, rgba(124,90,240,0.06) 100%)',
@@ -106,13 +115,13 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
             }}
           >
             <Plus size={13} />
-            {!collapsed && <span style={{ fontSize: 12, fontWeight: 600 }}>New Research</span>}
+            {!collapsed && <span className="sidebar-nav-label" style={{ fontSize: 12, fontWeight: 600 }}>New Research</span>}
           </button>
         </div>
 
         {/* Cmd palette */}
         {!collapsed && (
-          <div style={{ padding: '4px 10px', marginBottom: 4 }}>
+          <div className="sidebar-search" style={{ padding: '4px 10px', marginBottom: 4 }}>
             <button
               onClick={onCmd}
               style={{
@@ -138,57 +147,60 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
 
         <div style={{ height: 4 }} />
 
-        {NAV.map(({ label, to, icon: Icon, exact }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={exact}
-            style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center',
-              gap: 9, padding: collapsed ? '8px 16px' : '7px 18px',
-              margin: '1px 0', cursor: 'pointer', textDecoration: 'none',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              borderRadius: 0,
-              background: isActive ? 'rgba(59,158,255,0.08)' : 'transparent',
-              color: isActive ? '#3b9eff' : '#8b8897',
-              borderLeft: isActive ? '2px solid #3b9eff' : '2px solid transparent',
-              transition: 'all 120ms ease',
-            })}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon size={15} style={{ flexShrink: 0 }} color={isActive ? '#3b9eff' : '#55535d'} />
-                {!collapsed && (
-                  <span style={{ fontSize: 13, fontWeight: isActive ? 500 : 400 }}>{label}</span>
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {NAV.map(({ label, to, icon: Icon }) => {
+          const href = `${base}${to}` as const;
+          const isActive = pathname === href || (to !== '' && pathname.startsWith(`${href}/`));
+          return (
+            <Link
+              key={to}
+              href={href}
+              aria-label={label}
+              aria-current={isActive ? 'page' : undefined}
+              style={{
+                display: 'flex', alignItems: 'center',
+                gap: 9, padding: collapsed ? '8px 16px' : '7px 18px',
+                margin: '1px 0', cursor: 'pointer', textDecoration: 'none',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                borderRadius: 0,
+                background: isActive ? 'rgba(59,158,255,0.08)' : 'transparent',
+                color: isActive ? '#3b9eff' : '#8b8897',
+                borderLeft: isActive ? '2px solid #3b9eff' : '2px solid transparent',
+                transition: 'all 120ms ease',
+              }}
+            >
+              <Icon size={15} style={{ flexShrink: 0 }} color={isActive ? '#3b9eff' : '#55535d'} />
+              {!collapsed && (
+                <span className="sidebar-nav-label" style={{ fontSize: 13, fontWeight: isActive ? 500 : 400 }}>{label}</span>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Bottom */}
       <div style={{ borderTop: '1px solid #1e1e26', flexShrink: 0 }}>
-        {BOTTOM.map(({ label, to, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center',
-              gap: 9, padding: collapsed ? '10px 16px' : '10px 18px',
-              cursor: 'pointer', textDecoration: 'none',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              color: isActive ? '#3b9eff' : '#55535d',
-            })}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon size={14} color={isActive ? '#3b9eff' : '#55535d'} />
-                {!collapsed && <span style={{ fontSize: 13 }}>{label}</span>}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {BOTTOM.map(({ label, to, icon: Icon }) => {
+          const href = `${base}${to}` as const;
+          const isActive = pathname === href;
+          return (
+            <Link
+              key={to}
+              href={href}
+              aria-label={label}
+              aria-current={isActive ? 'page' : undefined}
+              style={{
+                display: 'flex', alignItems: 'center',
+                gap: 9, padding: collapsed ? '10px 16px' : '10px 18px',
+                cursor: 'pointer', textDecoration: 'none',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                color: isActive ? '#3b9eff' : '#55535d',
+              }}
+            >
+              <Icon size={14} color={isActive ? '#3b9eff' : '#55535d'} />
+              {!collapsed && <span className="sidebar-nav-label" style={{ fontSize: 13 }}>{label}</span>}
+            </Link>
+          );
+        })}
 
         {/* User + collapse */}
         <div style={{
@@ -197,7 +209,7 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
           justifyContent: collapsed ? 'center' : 'space-between',
         }}>
           {!collapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="sidebar-user" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
                 width: 24, height: 24, borderRadius: '50%',
                 background: '#252533', border: '1px solid #2c2c3a',
@@ -206,13 +218,14 @@ export default function Sidebar({ onCmd }: { onCmd: () => void }) {
                 <User size={12} color="#8b8897" />
               </div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 500, color: '#f0ede8', lineHeight: 1.2 }}>A. Researcher</div>
-                <div style={{ fontSize: 10, color: '#55535d' }}>researcher@lab.ai</div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: '#f0ede8', lineHeight: 1.2 }}>Local workspace</div>
+                <div style={{ fontSize: 10, color: '#55535d' }}>Saved in this browser</div>
               </div>
             </div>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
               padding: 4, borderRadius: 4, color: '#55535d',
