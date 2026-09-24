@@ -13,6 +13,7 @@ class NexusError(Exception):
         retryable: bool = False,
         query_id: UUID | None = None,
         run_id: UUID | None = None,
+        job_id: UUID | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
@@ -20,3 +21,4 @@ class NexusError(Exception):
         self.retryable = retryable
         self.query_id = query_id
         self.run_id = run_id
+        self.job_id = job_id

@@ -168,6 +168,7 @@ def azure_api(mock_azure):
         },
         "chat_error": None,
         "embedding_error": None,
+        "plan": None,
     }
 
     def handler(request):
@@ -203,7 +204,14 @@ def azure_api(mock_azure):
                         "finish_reason": "stop",
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps(state["answer"]),
+                            "content": json.dumps(
+                                state["plan"]
+                                if payload.get("response_format", {})
+                                .get("json_schema", {})
+                                .get("name")
+                                == "Plan"
+                                else state["answer"]
+                            ),
                         },
                     }
                 ],

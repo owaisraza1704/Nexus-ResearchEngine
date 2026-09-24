@@ -32,3 +32,5 @@ The long-term vision is a research assistant that can take a complex question, p
 - Gaps, contradictions, and uncertainty should be visible.
 - Research should remain controlled and inspectable as it becomes more capable.
 - Existing open-source tools and provider capabilities should be reused wherever appropriate.
+
+[Run Nexus locally](docs/mvp3.md) · [UI guide](NexusUI/README.md)

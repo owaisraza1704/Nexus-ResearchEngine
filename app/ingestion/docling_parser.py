@@ -71,6 +71,11 @@ def parse_document(
             f"Use a valid text PDF (at most {max_pages} pages) or DOCX within the parse time limit."
         ) from exc
 
+    return normalize_document(document)
+
+
+def normalize_document(document: Any) -> ParsedDocument:
+    """Preserve Docling block identities for both converted files and extracted web text."""
     blocks: list[ParsedBlock] = []
     normalized_parts: list[str] = []
     normalized_offset = 0

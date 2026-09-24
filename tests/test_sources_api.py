@@ -72,7 +72,7 @@ def test_failed_upload_can_retry_and_ready_duplicate_is_rejected(
     azure_api,
     word_bytes,
 ):
-    from app.api import sources
+    from app.ingestion import service as sources
 
     original_parser = sources.parse_document
 
@@ -182,7 +182,7 @@ def test_ingestion_budget_prevents_embedding_call(
     azure_api,
     monkeypatch,
 ):
-    from app.api import sources
+    from app.ingestion import service as sources
 
     monkeypatch.setattr(sources, "perf_counter", Mock(side_effect=[0.0, 181.0]))
     response = client.post("/v1/sources/uploads", files={"file": ("research.docx", word_bytes)})

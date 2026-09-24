@@ -15,7 +15,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setCmdOpen(o => !o);
+        setCmdOpen((o) => !o);
       }
     };
     window.addEventListener('keydown', handler);
@@ -23,13 +23,31 @@ export default function Layout({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="workspace-shell" style={{ display: 'flex', height: '100dvh', background: '#0c0c0e', overflow: 'hidden' }}>
+    <div
+      className="workspace-shell"
+      style={{
+        display: 'flex',
+        height: '100dvh',
+        background: '#0c0c0e',
+        overflow: 'hidden',
+      }}
+    >
       <Sidebar onCmd={() => setCmdOpen(true)} />
-      <main style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <main
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <header className="workspace-header">
-          <Link href="/research" aria-label="Back to all research" className="workspace-back"><ArrowLeft size={15} /></Link>
+          <Link href="/research" aria-label="Back to all research" className="workspace-back">
+            <ArrowLeft size={15} />
+          </Link>
           <span className="workspace-title">{research.title}</span>
-          <span className="local-badge">Local UI preview</span>
+          <span className="local-badge">Local workspace</span>
         </header>
         {children}
       </main>

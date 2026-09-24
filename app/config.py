@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     max_research_output_chars: int = Field(default=24_000, ge=1)
     max_research_output_tokens: int = Field(default=6_000, ge=1)
     research_timeout_seconds: float = Field(default=120.0, gt=0)
+    worker_concurrency: int = Field(default=2, ge=1, le=8)
+    max_job_tasks: int = Field(default=12, ge=4, le=30)
+    max_job_depth: int = Field(default=6, ge=3, le=10)
+    max_job_parallel_tasks: int = Field(default=2, ge=1, le=8)
+    max_job_provider_calls: int = Field(default=20, ge=2, le=100)
+    max_job_input_tokens: int = Field(default=100_000, ge=1)
+    max_job_output_tokens: int = Field(default=20_000, ge=1)
+    job_timeout_seconds: int = Field(default=600, ge=10, le=3600)
+    max_web_sources: int = Field(default=3, ge=0, le=5)
+    max_web_bytes: int = Field(default=2 * 1024 * 1024, ge=1)
+    web_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
     azure_openai_endpoint: str | None = None
     azure_openai_api_key: str | None = None
     azure_openai_api_version: str | None = None

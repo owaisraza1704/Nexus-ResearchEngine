@@ -11,7 +11,7 @@ export default function ResearchLibraryHeader() {
         Research library
       </Link>
       <div className="library-header-end">
-        <span className="local-badge">Browser-local preview</span>
+        <span className="local-badge">Your local research library</span>
         <Link href="/" className="library-home-link">
           About Nexus <ArrowUpRight size={14} />
         </Link>

@@ -1,31 +1,29 @@
 'use client';
-
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
-import ResearchRunList from '@/components/ResearchRunList';
+import { useState } from 'react';
 import { useResearch } from '@/components/ResearchStore';
-import { DEMO_RESEARCH_ID } from '@/data/research';
-
+import ResearchRunList from '@/components/ResearchRunList';
 export default function ResearchRuns() {
   const research = useResearch();
+  const [filter, setFilter] = useState('');
   return (
     <div className="workspace-scroll">
-      <div className="research-composer-page">
-        <p className="eyebrow">{research.title}</p>
-        <h1 className="workspace-page-title">Research runs</h1>
-        <p className="muted">
-          Each question is a run. All runs here belong to this research.
-        </p>
-        <ResearchRunList />
-        {research.id === DEMO_RESEARCH_ID && (
-          <Link
-            className="workflow-preview-link"
-            href={`/research/${research.id}/workflow`}
-          >
-            Explore the future workflow preview <ArrowRight size={14} />
-          </Link>
-        )}
-      </div>
+      <section className="product-page">
+        <p className="eyebrow">Research history</p>
+        <h1>Research runs</h1>
+        <p className="muted">Reopen results or follow work still running in the backend.</p>
+        <input
+          className="ui-input"
+          aria-label="Search runs"
+          placeholder="Search questions…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <ResearchRunList
+          runs={research.runs.filter((run) =>
+            run.question.toLowerCase().includes(filter.toLowerCase()),
+          )}
+        />
+      </section>
     </div>
   );
 }

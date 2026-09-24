@@ -1,265 +1,211 @@
 'use client';
-
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, FileText, Hash, Layers, Copy, Cpu } from 'lucide-react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Download } from 'lucide-react';
+import { API_BASE, useApi } from '@/lib/api';
 import { useResearch } from '@/components/ResearchStore';
-import { DEMO_RESEARCH_ID } from '@/data/research';
-
-const CHUNKS = Array.from({ length: 24 }, (_, i) => ({
-  id: `chunk-${String(i + 1).padStart(3, '0')}`,
-  index: i,
-  page: Math.floor(i / 3) + 1,
-  sequence: i + 1,
-  // Demo values must match during server and client rendering.
-  tokenCount: 180 + (i % 8) * 10,
-  text: [
-    'The attention mechanism computes queries, keys, and values from the input embeddings, enabling the model to selectively attend to relevant positions.',
-    'Document chunking strategies must balance retrieval precision against context completeness. Overlapping chunks improve recall at the cost of redundancy.',
-    'Vector similarity search relies on approximate nearest neighbor algorithms. HNSW and IVF-PQ are the dominant approaches for high-dimensional embeddings.',
-    'Grounded answer generation requires strict citation validation. Each claim must be traceable to a specific document chunk via the evidence chain.',
-    'The retrieval pipeline consists of query embedding, vector search, chunk retrieval, context assembly, and structured generation with citation constraints.',
-    'Source coverage analysis determines which documents contributed evidence to the final answer. Sources with zero retrieval hits are flagged as searched but unused.',
-  ][i % 6],
-  highlighted: [2, 5, 11].includes(i),
-}));
+import { ErrorNotice, Loading, StatusBadge } from '@/components/Feedback';
+import type { Chunk, SourceDetail } from '@/data/research';
 
 export default function DocumentInspector() {
   const { sourceId } = useParams<{ sourceId: string }>();
+  const search = useSearchParams();
   const research = useResearch();
-  const router = useRouter();
-  const [selectedChunk, setSelectedChunk] = useState<number | null>(2);
-  const [tab, setTab] = useState<'content' | 'chunks'>('chunks');
-
-  const source = research.sources.find(item => item.id === sourceId);
-  if (!source) {
+  const document = search.get('document');
+  const focusedId = search.get('chunk');
+  const base = `/v1/projects/${research.id}/sources/${sourceId}`;
+  const { data: source, error } = useApi<SourceDetail>(
+    base + (document ? '?document_id=' + document : ''),
+    5000,
+  );
+  const documentId = document || source?.document?.document_id;
+  const [offset, setOffset] = useState(0);
+  const [tab, setTab] = useState('chunks');
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<Chunk | null>(null);
+  const { data, error: chunksError } = useApi<{
+    chunks: Chunk[];
+    total: number;
+    document_version: number;
+  }>(documentId ? base + `/chunks?document_id=${documentId}&offset=${offset}&limit=50` : null);
+  const { data: focus, error: focusError } = useApi<Chunk>(
+    focusedId && documentId ? base + `/chunks/${focusedId}?document_id=${documentId}` : null,
+  );
+  const active = selected || focus;
+  const sourceKind = research.sources.find((item) => item.id === sourceId)?.kind;
+  const pdf = source?.original_filename.toLowerCase().endsWith('.pdf');
+  if (!source)
     return (
       <section className="research-empty">
-        <h1>Source not found</h1>
-        <p>This source does not belong to this research.</p>
-        <Link className="ui-button" href={`/research/${research.id}/sources`}>Back to sources</Link>
+        <ErrorNotice error={error} />
+        {!error && <Loading text="Opening source…" />}
       </section>
     );
-  }
-
-  if (research.id !== DEMO_RESEARCH_ID || source.id !== 'src-001') {
-    return (
-      <section className="research-empty">
-        <FileText size={28} />
-        <h1>{source.name}</h1>
-        <p>Sample source · {source.pages} pages · {source.chunks} chunks</p>
-        <p className="muted">Parsed content is not included in this interface example.</p>
-        <Link className="ui-button" href={`/research/${research.id}/sources`}>Back to sources</Link>
-      </section>
-    );
-  }
-
-  const doc = {
-    ...source,
-    parser: 'pypdf2',
-    parserVersion: '3.0.1',
-    contentHash: 'sha256:a3f7c1d9e2b8...',
-    normalizedText: 'COMPLETE',
-    embeddingModel: 'text-embedding-ada-002',
-    chunkSize: 256,
-    chunkOverlap: 32,
-    created: '2026-09-22T14:31:00Z',
-  };
-
+  const chunks =
+    data?.chunks.filter((chunk) => chunk.text.toLowerCase().includes(query.toLowerCase())) ?? [];
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div className="preview-notice">Sample document preview · not parsed from an uploaded file</div>
-      {/* Header */}
-      <div style={{
-        borderBottom: '1px solid #1e1e26', padding: '14px 24px',
-        display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
-        background: '#0c0c0e',
-      }}>
-        <button
-          onClick={() => router.push(`/research/${research.id}/sources`)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#55535d', display: 'flex', gap: 4, alignItems: 'center' }}
-        >
-          <ChevronLeft size={14} />
-          <span style={{ fontSize: 12 }}>Sources</span>
-        </button>
-        <span style={{ color: '#2c2c3a' }}>/</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <FileText size={14} color="#60a5fa" />
-          <span style={{ fontSize: 13.5, fontWeight: 500, color: '#f0ede8' }}>{doc.name}</span>
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: '#22c55e',
-            background: 'rgba(34,197,94,0.1)', padding: '2px 6px', borderRadius: 3,
-          }}>READY</span>
+    <div className="workspace-scroll">
+      <section className="product-page">
+        <Link className="back-to-library" href={`/research/${research.id}/sources`}>
+          ← Source library
+        </Link>
+        <div className="page-heading">
+          <h1>{source.display_name}</h1>
+          <StatusBadge status={source.status} />
         </div>
-      </div>
-
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '240px 1fr 280px', overflow: 'hidden' }}>
-
-        {/* Left — Document Metadata */}
-        <div style={{ borderRight: '1px solid #1e1e26', overflowY: 'auto', padding: '20px 16px' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.8, color: '#55535d', textTransform: 'uppercase', marginBottom: 14 }}>
-            Document Metadata
+        <ErrorNotice error={error || chunksError || focusError} />
+        {source.error_detail && <ErrorNotice error={source.error_detail} />}
+        {!source.document ? (
+          <div className="runs-empty">
+            <h2>{source.status === 'failed' ? 'Parsing failed' : 'Processing document'}</h2>
+            <p>
+              {source.status === 'failed'
+                ? 'Return to the source library to retry this upload.'
+                : 'The worker is parsing and indexing this document. This view updates automatically.'}
+            </p>
           </div>
-
-          {[
-            { label: 'Source ID', value: doc.id },
-            { label: 'Version', value: doc.version },
-            { label: 'Parser', value: doc.parser },
-            { label: 'Parser Version', value: doc.parserVersion },
-            { label: 'Pages', value: doc.pages },
-            { label: 'Chunks', value: doc.chunks },
-            { label: 'Chunk Size', value: `${doc.chunkSize} tokens` },
-            { label: 'Overlap', value: `${doc.chunkOverlap} tokens` },
-            { label: 'Normalized Text', value: doc.normalizedText },
-            { label: 'Content Hash', value: doc.contentHash, mono: true, truncate: true },
-            { label: 'Embedding Model', value: doc.embeddingModel },
-            { label: 'Created', value: '2026-09-22 14:31' },
-          ].map(({ label, value, mono, truncate }) => (
-            <div key={label} style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: '#55535d', fontWeight: 500, letterSpacing: 0.4, marginBottom: 2 }}>
-                {label}
-              </div>
-              <div style={{
-                fontSize: mono ? 11 : 12,
-                fontFamily: mono ? 'var(--font-mono, monospace)' : 'inherit',
-                color: '#8b8897',
-                overflow: truncate ? 'hidden' : undefined,
-                textOverflow: truncate ? 'ellipsis' : undefined,
-                whiteSpace: truncate ? 'nowrap' : undefined,
-              }}>
-                {String(value)}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Center — Content / Chunks List */}
-        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {/* Tabs */}
-          <div style={{
-            display: 'flex', borderBottom: '1px solid #1e1e26', padding: '0 20px', flexShrink: 0,
-          }}>
-            {(['chunks', 'content'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                style={{
-                  padding: '12px 14px', background: 'none', border: 'none',
-                  borderBottom: tab === t ? '2px solid #3b9eff' : '2px solid transparent',
-                  cursor: 'pointer', fontSize: 13,
-                  color: tab === t ? '#3b9eff' : '#55535d',
-                  textTransform: 'capitalize', fontFamily: 'inherit',
-                  marginBottom: -1,
-                }}
+        ) : (
+          <>
+            <div className="metadata-bar">
+              <span>Version {source.document.version}</span>
+              <span>
+                {source.document.parser_name} {source.document.parser_version}
+              </span>
+              <span>
+                {source.document.page_count == null
+                  ? 'No fixed page count'
+                  : source.document.page_count + ' pages'}
+              </span>
+              <span>{source.document.chunk_count} passages</span>
+              <a
+                href={API_BASE + base + '/file'}
+                className="ui-button"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                {t === 'chunks' ? `Chunks (${doc.chunks})` : 'Content Preview'}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-            {tab === 'chunks' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {CHUNKS.map(chunk => (
-                  <div
-                    key={chunk.id}
-                    onClick={() => setSelectedChunk(chunk.index)}
-                    style={{
-                      padding: '12px 14px', borderRadius: 6, cursor: 'pointer',
-                      border: `1px solid ${selectedChunk === chunk.index ? 'rgba(59,158,255,0.3)' : chunk.highlighted ? 'rgba(59,158,255,0.15)' : '#1e1e26'}`,
-                      background: selectedChunk === chunk.index ? 'rgba(59,158,255,0.06)' : chunk.highlighted ? 'rgba(59,158,255,0.03)' : '#111116',
-                      transition: 'all 120ms',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, color: '#3b9eff' }}>
-                          Chunk {String(chunk.index + 1).padStart(3, '0')}
+                <Download size={14} />
+                {sourceKind === 'web' ? 'Extracted text' : 'Original file'}
+              </a>
+            </div>
+            {document && document !== source.current_document_id && (
+              <p className="warning-notice">
+                Viewing the historical document version pinned by this citation.
+              </p>
+            )}
+            <div className="tabs" role="tablist" aria-label="Document views">
+              {[
+                ['chunks', 'Passages'],
+                ['content', 'Parsed content'],
+                ...(pdf ? [['original', 'Original PDF']] : []),
+              ].map(([id, label]) => (
+                <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {tab === 'chunks' && (
+              <div className="inspector-layout">
+                <div>
+                  <input
+                    className="ui-input"
+                    aria-label="Search displayed passages"
+                    placeholder="Search this page of passages…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                  <div className="stack">
+                    {chunks.map((chunk) => (
+                      <button
+                        className={
+                          'panel chunk-card ' +
+                          (active?.chunk_id === chunk.chunk_id ? 'is-selected' : '')
+                        }
+                        key={chunk.chunk_id}
+                        onClick={() => setSelected(chunk)}
+                      >
+                        <span className="eyebrow">
+                          Passage {chunk.sequence + 1} · {chunk.char_count} characters
                         </span>
-                        <span style={{ fontSize: 10, color: '#55535d', fontFamily: 'var(--font-mono, monospace)' }}>
-                          Page {chunk.page} · Seq {chunk.sequence}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: 10, color: '#55535d', fontFamily: 'var(--font-mono, monospace)' }}>
-                        {chunk.tokenCount}t
-                      </span>
-                    </div>
-                    <div style={{
-                      fontSize: 12, color: '#8b8897', lineHeight: 1.55,
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                    }}>
-                      {chunk.text}
-                    </div>
-                    {chunk.highlighted && (
-                      <div style={{ marginTop: 6, fontSize: 10, color: '#3b9eff' }}>
-                        ↳ Referenced in 3 retrievals
-                      </div>
-                    )}
+                        <p>{chunk.text}</p>
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: '#8b8897', lineHeight: 1.8 }}>
-                <p>Page 1 — Document content preview would appear here. The normalized text extracted from the PDF is shown with page boundaries and section markers preserved.</p>
-                <p>The document parser extracts text while preserving structural metadata including page numbers, section headings, and content type classifications.</p>
+                  {!data && <Loading text="Loading passages…" />}
+                  {data && !chunks.length && (
+                    <p className="muted">No matching passages on this page.</p>
+                  )}
+                  {data && (
+                    <div className="toolbar pagination">
+                      <button
+                        className="ui-button"
+                        disabled={offset === 0}
+                        onClick={() => setOffset(Math.max(0, offset - 50))}
+                      >
+                        Previous
+                      </button>
+                      <span>
+                        {offset + 1}–{Math.min(offset + 50, data.total)} of {data.total}
+                      </span>
+                      <button
+                        className="ui-button"
+                        disabled={offset + 50 >= data.total}
+                        onClick={() => setOffset(offset + 50)}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <aside className="panel passage-inspector">
+                  {active ? (
+                    <>
+                      <h2>Exact passage</h2>
+                      <p className="eyebrow">Passage {active.sequence + 1}</p>
+                      <blockquote>{active.text}</blockquote>
+                      <dl>
+                        <dt>Chunk ID</dt>
+                        <dd>{active.chunk_id}</dd>
+                        <dt>Text SHA-256</dt>
+                        <dd>{active.text_sha256}</dd>
+                      </dl>
+                      <h3>Locator</h3>
+                      <pre>{JSON.stringify(active.locator, null, 2)}</pre>
+                    </>
+                  ) : (
+                    <p className="muted">Select a passage to inspect its text and provenance.</p>
+                  )}
+                </aside>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Right — Chunk Inspector */}
-        <div style={{ borderLeft: '1px solid #1e1e26', overflowY: 'auto', padding: '20px 16px' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.8, color: '#55535d', textTransform: 'uppercase', marginBottom: 14 }}>
-            Chunk Inspector
-          </div>
-
-          {selectedChunk !== null ? (
-            <>
-              {[
-                { label: 'Chunk ID', value: CHUNKS[selectedChunk].id },
-                { label: 'Page', value: CHUNKS[selectedChunk].page },
-                { label: 'Sequence', value: CHUNKS[selectedChunk].sequence },
-                { label: 'Tokens', value: CHUNKS[selectedChunk].tokenCount },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, color: '#55535d', marginBottom: 2 }}>{label}</div>
-                  <div style={{ fontSize: 12, color: '#8b8897', fontFamily: 'var(--font-mono, monospace)' }}>{value}</div>
-                </div>
-              ))}
-
-              <div style={{ height: 1, background: '#1e1e26', margin: '14px 0' }} />
-              <div style={{ fontSize: 10, color: '#55535d', marginBottom: 8 }}>Excerpt</div>
-              <div style={{
-                fontSize: 12, color: '#8b8897', lineHeight: 1.65,
-                padding: 12, background: '#17171d', borderRadius: 5,
-                border: '1px solid #1e1e26',
-              }}>
-                "{CHUNKS[selectedChunk].text}"
-              </div>
-
-              {CHUNKS[selectedChunk].highlighted && (
-                <>
-                  <div style={{ height: 1, background: '#1e1e26', margin: '14px 0' }} />
-                  <div style={{ fontSize: 10, color: '#3b9eff', fontWeight: 600, marginBottom: 8, letterSpacing: 0.5 }}>
-                    RETRIEVAL HITS
-                  </div>
-                  {['run-001', 'run-003'].map(r => (
-                    <div key={r} style={{
-                      fontSize: 11.5, color: '#55535d', fontFamily: 'var(--font-mono, monospace)',
-                      padding: '6px 8px', background: '#17171d', borderRadius: 4, marginBottom: 4,
-                    }}>
-                      {r} · score 0.91
-                    </div>
-                  ))}
-                </>
-              )}
-            </>
-          ) : (
-            <div style={{ color: '#55535d', fontSize: 13 }}>Select a chunk to inspect</div>
-          )}
-        </div>
-      </div>
+            {tab === 'content' && (
+              <article className="panel normalized-text">{source.normalized_text}</article>
+            )}
+            {tab === 'original' && (
+              <iframe
+                className="pdf-preview"
+                title={source.display_name + ' original PDF'}
+                src={API_BASE + base + '/file'}
+              />
+            )}
+            <details className="panel">
+              <summary>Document identity</summary>
+              <dl>
+                <dt>Source ID</dt>
+                <dd>{source.source_id}</dd>
+                <dt>Snapshot ID</dt>
+                <dd>{source.document.document_id}</dd>
+                <dt>Content SHA-256</dt>
+                <dd>{source.content_sha256}</dd>
+                <dt>Normalized text SHA-256</dt>
+                <dd>
+                  {source.document.normalized_text_sha256 || 'Unavailable for this legacy snapshot'}
+                </dd>
+              </dl>
+            </details>
+          </>
+        )}
+      </section>
     </div>
   );
 }

@@ -271,7 +271,7 @@ def validate_output(
         invalid("A limitation or explanation cites an unknown passage.")
     if output.status == "completed":
         used_sources = {source_by_label[label] for label in grounded_labels}
-        if len(used_sources) < 2:
+        if len(used_sources) < run.answer_config.get("min_cited_sources", 2):
             invalid(
                 "A completed multi-document result needs grounded claims from multiple sources."
             )

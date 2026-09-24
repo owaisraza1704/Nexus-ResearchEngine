@@ -53,12 +53,24 @@ def evidence_rows(db: Session, run_id):
 
 
 def save_result(
-    db: Session, run: ResearchRun, generated: GeneratedResearch, started: float
+    db: Session,
+    run: ResearchRun,
+    generated: GeneratedResearch,
+    started: float,
+    *,
+    commit: bool = True,
 ) -> ResearchResult:
     """Commit validated claims, coverage, citations, and the result as one transaction."""
     if run.status != "synthesizing":
         raise NexusError("RESEARCH_RUN_IMMUTABLE", "Only an active run can save a result.", 409)
     rows = evidence_rows(db, run.id)
+    if any(
+        item.excerpt != chunk.text or item.locator_snapshot != chunk.locator
+        for item, _, _, chunk, _ in rows
+    ):
+        raise NexusError(
+            "EVIDENCE_VALIDATION_FAILED", "Evidence does not match its source snapshot.", 502
+        )
     evidence = [row[0] for row in rows]
     source_by_label = {item.label: pin.id for item, _, pin, _, _ in rows}
     validate_output(run, generated, evidence, source_by_label)
@@ -183,5 +195,8 @@ def save_result(
     result.duration_ms = run.duration_ms
     if perf_counter() - started > run.answer_config["timeout_seconds"]:
         raise NexusError("RESEARCH_TIMEOUT", "The research time limit was exceeded.", 504)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return result

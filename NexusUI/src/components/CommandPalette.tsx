@@ -2,16 +2,36 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Brain, Zap, GitBranch, FlaskConical, Settings, Layers, ArrowRight } from 'lucide-react';
-import { useResearch } from './ResearchStore';
+import {
+  Search,
+  Brain,
+  Zap,
+  GitBranch,
+  FlaskConical,
+  Settings,
+  Layers,
+  ArrowRight,
+  FileText,
+} from 'lucide-react';
+import { useResearch, useResearchStore } from './ResearchStore';
 
 const SCOPED_COMMANDS = [
   { label: 'Search Sources', icon: Search, to: '/sources', group: 'Navigate' },
   { label: 'Research Runs', icon: Zap, to: '/runs', group: 'Navigate' },
-  { label: 'Evidence Explorer', icon: Search, to: '/evidence', group: 'Navigate' },
+  {
+    label: 'Evidence Explorer',
+    icon: Search,
+    to: '/evidence',
+    group: 'Navigate',
+  },
   { label: 'Reports', icon: Layers, to: '/reports', group: 'Navigate' },
   { label: 'Research Graph', icon: GitBranch, to: '/graph', group: 'Navigate' },
-  { label: 'Evaluation', icon: FlaskConical, to: '/evaluation', group: 'Navigate' },
+  {
+    label: 'Evaluation',
+    icon: FlaskConical,
+    to: '/evaluation',
+    group: 'Navigate',
+  },
   { label: 'Settings', icon: Settings, to: '/settings', group: 'Navigate' },
 ] as const;
 
@@ -21,14 +41,46 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const research = useResearch();
+  const researches = useResearchStore((state) => state.researches);
   const commands = [
-    { label: 'All research', icon: Layers, to: '/research' as const, group: 'Navigate' },
-    { label: 'New Research', icon: Brain, to: '/research/new' as const, group: 'Actions' },
-    ...SCOPED_COMMANDS.map(command => ({ ...command, to: `/research/${research.id}${command.to}` as const })),
+    {
+      label: 'All research',
+      icon: Layers,
+      to: '/research' as const,
+      group: 'Navigate',
+    },
+    {
+      label: 'New Research',
+      icon: Brain,
+      to: '/research/new' as const,
+      group: 'Actions',
+    },
+    ...SCOPED_COMMANDS.map((command) => ({
+      ...command,
+      to: `/research/${research.id}${command.to}` as const,
+    })),
+    ...research.sources.map((source) => ({
+      label: source.name,
+      icon: FileText,
+      to: `/research/${research.id}/sources/${source.id}` as const,
+      group: 'Sources',
+    })),
+    ...research.runs.map((run) => ({
+      label: run.question,
+      icon: Zap,
+      to: `/research/${research.id}/runs/${run.id}` as const,
+      group: 'Research runs',
+    })),
+    ...researches.map((item) => ({
+      label: item.title,
+      icon: Brain,
+      to: `/research/${item.id}` as const,
+      group: 'Workspaces',
+    })),
   ];
 
-  const filtered = commands.filter(c =>
-    query === '' || c.label.toLowerCase().includes(query.toLowerCase())
+  const filtered = commands.filter(
+    (c) => query === '' || c.label.toLowerCase().includes(query.toLowerCase()),
   );
 
   useEffect(() => {
@@ -43,8 +95,14 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     const handler = (e: KeyboardEvent) => {
       if (!open) return;
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowDown') { e.preventDefault(); setSelected(s => Math.min(s + 1, filtered.length - 1)); }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setSelected(s => Math.max(s - 1, 0)); }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelected((s) => Math.min(s + 1, filtered.length - 1));
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelected((s) => Math.max(s - 1, 0));
+      }
       if (e.key === 'Enter' && filtered[selected]) {
         router.push(filtered[selected].to);
         onClose();
@@ -56,89 +114,153 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
   if (!open) return null;
 
-  const groups = Array.from(new Set(filtered.map(c => c.group)));
+  const groups = Array.from(new Set(filtered.map((c) => c.group)));
 
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
         paddingTop: '18vh',
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: 560, maxWidth: 'calc(100vw - 32px)', background: '#17171d',
-          border: '1px solid #2c2c3a', borderRadius: 10,
-          overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+          width: 560,
+          maxWidth: 'calc(100vw - 32px)',
+          background: '#17171d',
+          border: '1px solid #2c2c3a',
+          borderRadius: 10,
+          overflow: 'hidden',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Search input */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '12px 16px', borderBottom: '1px solid #1e1e26',
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '12px 16px',
+            borderBottom: '1px solid #1e1e26',
+          }}
+        >
           <Search size={15} color="#55535d" />
           <input
             ref={inputRef}
             value={query}
-            onChange={e => { setQuery(e.target.value); setSelected(0); }}
-            placeholder="Search commands..."
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelected(0);
+            }}
+            placeholder="Search sources, runs, research…"
+            aria-label="Search commands and research"
             style={{
-              flex: 1, background: 'none', border: 'none', outline: 'none',
-              fontSize: 14, color: '#f0ede8', fontFamily: 'inherit',
+              flex: 1,
+              background: 'none',
+              border: 'none',
+              outline: 'none',
+              fontSize: 14,
+              color: '#f0ede8',
+              fontFamily: 'inherit',
             }}
           />
-          <kbd style={{
-            fontSize: 10, fontFamily: 'var(--font-mono, monospace)',
-            background: '#1e1e27', border: '1px solid #2c2c3a',
-            padding: '2px 6px', borderRadius: 4, color: '#55535d',
-          }}>ESC</kbd>
+          <kbd
+            style={{
+              fontSize: 10,
+              fontFamily: 'var(--font-mono, monospace)',
+              background: '#1e1e27',
+              border: '1px solid #2c2c3a',
+              padding: '2px 6px',
+              borderRadius: 4,
+              color: '#55535d',
+            }}
+          >
+            ESC
+          </kbd>
         </div>
 
-        {/* Results */}
         <div style={{ maxHeight: 320, overflowY: 'auto', padding: '6px 0' }}>
           {filtered.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: '#55535d', fontSize: 13 }}>
+            <div
+              style={{
+                padding: '24px',
+                textAlign: 'center',
+                color: '#55535d',
+                fontSize: 13,
+              }}
+            >
               No commands found
             </div>
-          ) : groups.map(group => (
-            <div key={group}>
-              <div style={{
-                padding: '6px 16px 3px',
-                fontSize: 10, fontWeight: 600, letterSpacing: 0.8,
-                color: '#55535d', textTransform: 'uppercase',
-              }}>{group}</div>
-              {filtered.filter(c => c.group === group).map((cmd, i) => {
-                const globalIdx = filtered.indexOf(cmd);
-                const Icon = cmd.icon;
-                return (
-                  <button
-                    key={cmd.label}
-                    onMouseEnter={() => setSelected(globalIdx)}
-                    onClick={() => { router.push(cmd.to); onClose(); }}
-                    style={{
-                      width: '100%', padding: '8px 16px',
-                      background: globalIdx === selected ? 'rgba(59,158,255,0.08)' : 'transparent',
-                      border: 'none', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      color: globalIdx === selected ? '#f0ede8' : '#8b8897',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Icon size={14} color={globalIdx === selected ? '#3b9eff' : '#55535d'} />
-                      <span style={{ fontSize: 13 }}>{cmd.label}</span>
-                    </div>
-                    <ArrowRight size={12} color={globalIdx === selected ? '#3b9eff' : 'transparent'} />
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          ) : (
+            groups.map((group) => (
+              <div key={group}>
+                <div
+                  style={{
+                    padding: '6px 16px 3px',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: 0.8,
+                    color: '#55535d',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {group}
+                </div>
+                {filtered
+                  .filter((c) => c.group === group)
+                  .map((cmd) => {
+                    const globalIdx = filtered.indexOf(cmd);
+                    const Icon = cmd.icon;
+                    return (
+                      <button
+                        key={cmd.to}
+                        onMouseEnter={() => setSelected(globalIdx)}
+                        onClick={() => {
+                          router.push(cmd.to);
+                          onClose();
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 16px',
+                          background:
+                            globalIdx === selected ? 'rgba(59,158,255,0.08)' : 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          color: globalIdx === selected ? '#f0ede8' : '#8b8897',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                          }}
+                        >
+                          <Icon size={14} color={globalIdx === selected ? '#3b9eff' : '#55535d'} />
+                          <span style={{ fontSize: 13 }}>{cmd.label}</span>
+                        </div>
+                        <ArrowRight
+                          size={12}
+                          color={globalIdx === selected ? '#3b9eff' : 'transparent'}
+                        />
+                      </button>
+                    );
+                  })}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

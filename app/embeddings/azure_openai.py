@@ -24,6 +24,7 @@ class EmbeddingResult:
     model: str
     deployment: str
     prompt_tokens: int | None
+    batch_prompt_tokens: int | None = None
 
 
 def embed_text(text: str, settings: Settings) -> EmbeddingResult:
@@ -98,6 +99,7 @@ def embed_texts(texts: Sequence[str], settings: Settings) -> tuple[EmbeddingResu
                 model=model,
                 deployment=deployment,
                 prompt_tokens=prompt_tokens,
+                batch_prompt_tokens=getattr(usage, "prompt_tokens", None),
             )
         )
 

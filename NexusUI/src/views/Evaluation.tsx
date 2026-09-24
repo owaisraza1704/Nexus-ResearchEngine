@@ -1,175 +1,260 @@
 'use client';
-
 import { useState } from 'react';
+import Link from 'next/link';
+import { useResearch } from '@/components/ResearchStore';
+import { ErrorNotice, Loading, StatusBadge } from '@/components/Feedback';
+import { api, useApi } from '@/lib/api';
+import { hasResult, readable, type Result } from '@/data/research';
 
-const METRICS = [
-  { label: 'Report Generation Latency', value: '3.2s', delta: '-0.8s', trend: 'up', unit: 'avg', color: '#22c55e' },
-  { label: 'Retrieval Relevance', value: '0.89', delta: '+0.04', trend: 'up', unit: 'score', color: '#22c55e' },
-  { label: 'Citation Correctness', value: '94.2%', delta: '+1.1%', trend: 'up', unit: 'rate', color: '#22c55e' },
-  { label: 'Groundedness', value: '91.7%', delta: '+2.3%', trend: 'up', unit: 'rate', color: '#22c55e' },
-  { label: 'Cache Hit Rate', value: '38.4%', delta: '-4.1%', trend: 'down', unit: 'rate', color: '#f59e0b' },
-  { label: 'Token Consumption', value: '1,847', delta: '+112', trend: 'down', unit: 'avg/run', color: '#f59e0b' },
-];
-
-const RUNS = [
-  { id: 'run-001', q: 'Encoder vs decoder attention...', latency: 3.2, retrieval: 0.91, citations: 4, groundedness: 95, tokens: 1821, status: 'COMPLETED' },
-  { id: 'run-003', q: 'Failure modes of vector search...', latency: 5.1, retrieval: 0.87, citations: 11, groundedness: 89, tokens: 2104, status: 'COMPLETED' },
-  { id: 'run-002', q: 'Retrieval architecture evaluation...', latency: 1.4, retrieval: 0.44, citations: 0, groundedness: 0, tokens: 612, status: 'INSUFFICIENT_CONTEXT' },
-];
-
-const BAR_DATA = [
-  { label: 'run-001', retrieval: 0.91, groundedness: 0.95 },
-  { label: 'run-002', retrieval: 0.44, groundedness: 0 },
-  { label: 'run-003', retrieval: 0.87, groundedness: 0.89 },
-];
-
-function SparkBar({ value, max = 1, color }: { value: number; max?: number; color: string }) {
+type EvaluationData = {
+  job_count: number;
+  statuses: Record<string, number>;
+  rejected_plans: number;
+  provider_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  unknown_usage_calls: number;
+  review_count: number;
+  human_scores: Record<string, number | null>;
+  runs: {
+    job_id: string;
+    question: string;
+    status: string;
+    mode: string;
+    duration_ms: number | null;
+    provider_calls: number;
+    reviewed: boolean;
+  }[];
+  note: string;
+};
+const DIMENSIONS = ['groundedness', 'relevance', 'citation_quality'] as const;
+function ReviewForm({ result, onSaved }: { result: Result; onSaved: () => void }) {
+  const [scores, setScores] = useState<Record<string, string>>({
+    groundedness: result.review?.groundedness.toString() ?? '',
+    relevance: result.review?.relevance.toString() ?? '',
+    citation_quality: result.review?.citation_quality.toString() ?? '',
+  });
+  const [notes, setNotes] = useState(result.review?.notes ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [saved, setSaved] = useState(false);
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api('/v1/research/jobs/' + result.job_id + '/review', {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...Object.fromEntries(
+            DIMENSIONS.map((dimension) => [dimension, Number(scores[dimension])]),
+          ),
+          notes,
+        }),
+      });
+      setSaved(true);
+      onSaved();
+    } catch (failure) {
+      setError(failure);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <div style={{ flex: 1, height: 6, background: '#1e1e26', borderRadius: 3, overflow: 'hidden' }}>
-      <div style={{ width: `${(value / max) * 100}%`, height: '100%', background: color, borderRadius: 3 }} />
-    </div>
+    <form className="panel review-form" onSubmit={save}>
+      <h2>Your assessment</h2>
+      <p className="muted">
+        Read the result and its cited passages first. 1 = poor, 3 = mixed, 5 = strong. These scores
+        are yours, not automatic quality guarantees.
+      </p>
+      <Link
+        className="ui-button"
+        href={`/research/${result.workspace_id}/runs/${result.job_id}`}
+        target="_blank"
+      >
+        Review result and evidence ↗
+      </Link>
+      <div className="review-dimensions">
+        {DIMENSIONS.map((dimension) => (
+          <label key={dimension} className="field-label">
+            {readable(dimension)}
+            <select
+              className="ui-input"
+              required
+              value={scores[dimension]}
+              onChange={(e) => {
+                setScores({ ...scores, [dimension]: e.target.value });
+                setSaved(false);
+              }}
+            >
+              <option value="">Choose a score</option>
+              {[1, 2, 3, 4, 5].map((score) => (
+                <option key={score}>{score}</option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <label className="field-label" htmlFor="review-notes">
+        Review notes
+      </label>
+      <textarea
+        className="ui-input"
+        id="review-notes"
+        maxLength={4000}
+        rows={3}
+        value={notes}
+        onChange={(e) => {
+          setNotes(e.target.value);
+          setSaved(false);
+        }}
+      />
+      <ErrorNotice error={error} />
+      <button className="ui-button ui-button-primary" disabled={busy}>
+        {busy ? 'Saving…' : 'Save review'}
+      </button>
+      {saved && (
+        <p className="muted" role="status">
+          Review saved.
+        </p>
+      )}
+    </form>
   );
 }
 
 export default function Evaluation() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'runs'>('overview');
-
+  const research = useResearch();
+  const { data, error, mutate } = useApi<EvaluationData>(
+    '/v1/projects/' + research.id + '/evaluation',
+    5000,
+  );
+  const runs = research.runs.filter((run) => hasResult(run.status));
+  const [runId, setRunId] = useState('');
+  const selected = runId || runs[0]?.id;
+  const {
+    data: result,
+    error: resultError,
+    mutate: updateResult,
+  } = useApi<Result>(selected ? '/v1/research/jobs/' + selected + '/result' : null);
   return (
-    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '36px 32px 80px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: '#55535d', textTransform: 'uppercase', marginBottom: 6 }}>Evaluation</div>
-          <h1 style={{ fontSize: 22, fontWeight: 300, letterSpacing: -0.5, color: '#f0ede8', margin: 0 }}>Research Quality Metrics</h1>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #1e1e26', marginBottom: 24 }}>
-          {(['overview', 'runs'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              style={{
-                padding: '10px 16px', background: 'none', border: 'none',
-                borderBottom: activeTab === t ? '2px solid #3b9eff' : '2px solid transparent',
-                cursor: 'pointer', fontSize: 13,
-                color: activeTab === t ? '#3b9eff' : '#55535d',
-                textTransform: 'capitalize', fontFamily: 'inherit', marginBottom: -1,
-              }}
-            >
-              {t === 'overview' ? 'Overview' : 'Run Analysis'}
-            </button>
-          ))}
-        </div>
-
-        {activeTab === 'overview' && (
+    <div className="workspace-scroll">
+      <section className="product-page">
+        <p className="eyebrow">Measure, inspect, improve</p>
+        <h1>Evaluation</h1>
+        <p className="muted">
+          Execution reliability and your assessment of completed research. No placeholder scores.
+        </p>
+        <ErrorNotice error={error || resultError} />
+        {!data && !error && <Loading />}
+        {data && (
           <>
-            {/* Metric grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
-              {METRICS.map(m => (
-                <div key={m.label} style={{
-                  background: '#111116', border: '1px solid #1e1e26', borderRadius: 7, padding: '16px 18px',
-                }}>
-                  <div style={{ fontSize: 10.5, color: '#55535d', fontWeight: 500, marginBottom: 10 }}>{m.label}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontSize: 26, fontWeight: 600, fontFamily: 'var(--font-mono, monospace)', color: m.color, letterSpacing: -0.5 }}>
-                      {m.value}
-                    </span>
-                    <span style={{ fontSize: 10.5, color: m.trend === 'up' ? '#22c55e' : '#f59e0b' }}>
-                      {m.delta}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 10, color: '#55535d', fontFamily: 'var(--font-mono, monospace)' }}>{m.unit}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Retrieval vs groundedness chart */}
-            <div style={{ background: '#111116', border: '1px solid #1e1e26', borderRadius: 8, padding: '20px 24px', marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#55535d', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 20 }}>
-                Retrieval Relevance vs Groundedness
+            <div className="metric-grid">
+              <div className="metric">
+                <span>Runs</span>
+                <strong>{data.job_count}</strong>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {BAR_DATA.map(d => (
-                  <div key={d.label}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: '#8b8897', width: 60, flexShrink: 0 }}>{d.label}</span>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 9.5, color: '#55535d', width: 70 }}>Retrieval</span>
-                          <SparkBar value={d.retrieval} color="#3b9eff" />
-                          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: '#3b9eff', width: 36, textAlign: 'right' }}>{d.retrieval}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 9.5, color: '#55535d', width: 70 }}>Groundedness</span>
-                          <SparkBar value={d.groundedness} color={d.groundedness > 0.7 ? '#22c55e' : d.groundedness > 0 ? '#f59e0b' : '#ef4444'} />
-                          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: d.groundedness > 0 ? '#22c55e' : '#ef4444', width: 36, textAlign: 'right' }}>
-                            {d.groundedness > 0 ? d.groundedness : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+              <div className="metric">
+                <span>Completed / with gaps</span>
+                <strong>
+                  {data.statuses.completed || 0}
+                  <small> / {data.statuses.completed_with_gaps || 0}</small>
+                </strong>
+              </div>
+              <div className="metric">
+                <span>Failed / rejected plans</span>
+                <strong>
+                  {data.statuses.failed || 0}
+                  <small> / {data.rejected_plans}</small>
+                </strong>
+              </div>
+              <div className="metric">
+                <span>Provider calls</span>
+                <strong>{data.provider_calls}</strong>
+              </div>
+            </div>
+            <p className="muted">
+              {data.input_tokens.toLocaleString()} input tokens ·{' '}
+              {data.output_tokens.toLocaleString()} output tokens reported ·{' '}
+              {data.unknown_usage_calls} calls with unknown or in-flight usage
+            </p>
+            <section className="panel">
+              <h2>Human review averages</h2>
+              <p className="muted">{data.review_count} reviewed results · ratings out of 5</p>
+              <div className="review-dimensions">
+                {DIMENSIONS.map((dimension) => (
+                  <div className="metric" key={dimension}>
+                    <span>{readable(dimension)}</span>
+                    <strong>{data.human_scores[dimension] ?? '—'}</strong>
                   </div>
                 ))}
               </div>
-
-              {/* Legend */}
-              <div style={{ display: 'flex', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid #1e1e26' }}>
-                {[{ color: '#3b9eff', label: 'Retrieval Relevance' }, { color: '#22c55e', label: 'Groundedness' }].map(l => (
-                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 10, height: 3, borderRadius: 2, background: l.color }} />
-                    <span style={{ fontSize: 11, color: '#55535d' }}>{l.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Future metrics */}
-            <div style={{
-              padding: '16px 20px', background: '#111116', border: '1px solid #1e1e26', borderRadius: 7,
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{ width: 8, height: 8, borderRadius: 2, background: '#2c2c3a', flexShrink: 0 }} />
-              <div>
-                <div style={{ fontSize: 12, color: '#55535d', marginBottom: 2 }}>Task Parallelism · Failure Recovery · Sequential vs Parallel Latency</div>
-                <div style={{ fontSize: 11, color: '#2c2c3a' }}>Available in MVP-3 — Async Research Jobs</div>
-              </div>
-            </div>
+            </section>
+            <p className="warning-notice">
+              {data.note} The repository's labeled retrieval and research evaluations remain
+              available from the command line.
+            </p>
           </>
         )}
-
-        {activeTab === 'runs' && (
-          <div style={{ background: '#111116', border: '1px solid #1e1e26', borderRadius: 8, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 80px 80px 80px 100px 80px', padding: '10px 18px', borderBottom: '1px solid #1e1e26' }}>
-              {['Question', 'Latency', 'Retrieval', 'Citations', 'Groundedness', 'Tokens'].map(h => (
-                <div key={h} style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.6, color: '#55535d', textTransform: 'uppercase' }}>{h}</div>
+        {runs.length > 0 && (
+          <>
+            <label className="field-label" htmlFor="review-run">
+              Result to review
+            </label>
+            <select
+              id="review-run"
+              className="ui-input"
+              value={selected}
+              onChange={(e) => setRunId(e.target.value)}
+            >
+              {runs.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.question}
+                </option>
               ))}
-            </div>
-            {RUNS.map((run, i) => (
-              <div key={run.id} style={{
-                display: 'grid', gridTemplateColumns: '2fr 80px 80px 80px 100px 80px',
-                padding: '14px 18px', borderBottom: i < RUNS.length - 1 ? '1px solid #1e1e26' : 'none',
-                alignItems: 'center',
-              }}>
-                <div>
-                  <div style={{ fontSize: 13, color: '#f0ede8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 16 }}>
-                    {run.q}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#55535d', fontFamily: 'var(--font-mono, monospace)' }}>{run.id}</div>
-                </div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: '#f0ede8' }}>{run.latency}s</div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: run.retrieval > 0.7 ? '#22c55e' : '#f59e0b' }}>{run.retrieval}</div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: '#8b8897' }}>{run.citations}</div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: run.groundedness > 0 ? '#22c55e' : '#55535d' }}>
-                  {run.groundedness > 0 ? `${run.groundedness}%` : '—'}
-                </div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--font-mono, monospace)', color: '#8b8897' }}>{run.tokens.toLocaleString()}</div>
-              </div>
-            ))}
-          </div>
+            </select>
+            {result && (
+              <ReviewForm
+                key={result.job_id}
+                result={result}
+                onSaved={() => {
+                  mutate();
+                  updateResult();
+                }}
+              />
+            )}
+          </>
         )}
-      </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Question</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Provider calls</th>
+                <th>Reviewed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.runs.map((run) => (
+                <tr key={run.job_id}>
+                  <td>
+                    <Link href={`/research/${research.id}/runs/${run.job_id}`}>{run.question}</Link>
+                  </td>
+                  <td>
+                    <StatusBadge status={run.status} />
+                  </td>
+                  <td>
+                    {run.duration_ms == null ? '—' : (run.duration_ms / 1000).toFixed(1) + 's'}
+                  </td>
+                  <td>{run.provider_calls}</td>
+                  <td>{run.reviewed ? 'Yes' : 'No'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

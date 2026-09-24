@@ -1,36 +1,31 @@
 'use client';
-
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, MessagesSquare } from 'lucide-react';
+import { ArrowRight, Zap } from 'lucide-react';
 import { useResearch } from './ResearchStore';
-
-export default function ResearchRunList() {
+import { StatusBadge } from './Feedback';
+import { formatDate, MODES, type RunSummary } from '@/data/research';
+export default function ResearchRunList({ runs }: { runs?: RunSummary[] }) {
   const research = useResearch();
-
-  if (research.runs.length === 0) {
+  const visible = runs ?? research.runs;
+  if (!visible.length)
     return (
       <div className="runs-empty">
-        <MessagesSquare size={23} />
+        <Zap size={22} />
         <h3>No runs yet</h3>
-        <p>Questions and results from this research will appear here.</p>
+        <p>Choose sources and ask your first question.</p>
       </div>
     );
-  }
-
   return (
     <div className="run-list">
-      {research.runs.map((run) => (
-        <Link
-          className="run-card"
-          key={run.id}
-          href={`/research/${research.id}/runs/${run.id}`}
-        >
-          <CheckCircle2 size={17} className="run-completed" />
+      {visible.map((run) => (
+        <Link className="run-card" key={run.id} href={`/research/${research.id}/runs/${run.id}`}>
+          <Zap size={17} color="#60a5fa" />
           <div>
             <h3>{run.question}</h3>
             <p>
-              <span className="status-pill">Sample result</span>
-              <span>{run.date}</span>
+              <StatusBadge status={run.status} />
+              <span>{MODES[run.mode]}</span>
+              <time>{formatDate(run.created_at)}</time>
             </p>
           </div>
           <ArrowRight size={16} />

@@ -38,6 +38,36 @@ services:
       postgres:
         condition: service_healthy
 
+  worker:
+    build: .
+    command: ["procrastinate", "--app", "app.worker.worker", "worker"]
+    env_file:
+      - .env
+    environment:
+      NEXUS_ENVIRONMENT: development
+      NEXUS_DATABASE_URL: postgresql+psycopg://nexus:nexus@postgres:5432/nexus
+      NEXUS_ARTIFACT_STORE_PATH: /app/.data/artifacts
+    volumes:
+      - artifact_data:/app/.data/artifacts
+      - docling_model_cache:/root/.cache/huggingface
+    stop_grace_period: 20s
+    depends_on:
+      api:
+        condition: service_healthy
+
+  ui:
+    build:
+      context: ./NexusUI
+      args:
+        NEXUS_API_URL: http://api:8000
+    environment:
+      NEXUS_API_URL: http://api:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   artifact_data:

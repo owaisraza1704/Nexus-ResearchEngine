@@ -1,10 +1,11 @@
 'use client';
-
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Layout from './Layout';
-import { CurrentResearchContext, useResearchStore } from './ResearchStore';
-
+import { CurrentResearchContext } from './ResearchStore';
+import { ErrorNotice, Loading } from './Feedback';
+import { useApi } from '@/lib/api';
+import type { Research } from '@/data/research';
 export default function ResearchScope({
   researchId,
   children,
@@ -12,25 +13,45 @@ export default function ResearchScope({
   researchId: string;
   children: ReactNode;
 }) {
-  const research = useResearchStore((state) =>
-    state.researches.find((item) => item.id === researchId),
-  );
-
+  const {
+    data: research,
+    error,
+    isLoading,
+    mutate,
+  } = useApi<Research>('/v1/projects/' + researchId, 3000);
   if (!research) {
     return (
       <main className="research-empty research-not-found">
-        <h1>Research not found</h1>
-        <p>This research is not saved in this browser.</p>
-        <Link className="ui-button ui-button-primary" href="/research">
-          Back to all research
-        </Link>
+        {isLoading ? (
+          <Loading text="Opening research…" />
+        ) : (
+          <>
+            <h1>{error?.status === 404 ? 'Research not found' : 'Research is unavailable'}</h1>
+            <ErrorNotice error={error} />
+            <button className="ui-button" onClick={() => mutate()}>
+              Try again
+            </button>
+            <Link className="ui-button" href="/research">
+              Back to all research
+            </Link>
+          </>
+        )}
       </main>
     );
   }
-
   return (
     <CurrentResearchContext.Provider value={research}>
-      <Layout key={research.id}>{children}</Layout>
+      <Layout key={research.id}>
+        <ErrorNotice
+          error={
+            error &&
+            new Error(
+              'Connection interrupted. Showing the last saved workspace; reconnect to see new progress.',
+            )
+          }
+        />
+        {children}
+      </Layout>
     </CurrentResearchContext.Provider>
   );
 }

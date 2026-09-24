@@ -105,57 +105,17 @@ def retrieve_evidence(
             db.commit()
             raise NexusError("SOURCE_VERSION_UNAVAILABLE", coverage.detail, 409)
 
-        selected_chars = 0
-        selected_count = 0
-        for rank, chunk in enumerate(chunks, start=1):
-            if chunk.document_id != pin.document_id or chunk.source_id != pin.source_id:
-                raise NexusError(
-                    "EVIDENCE_VALIDATION_FAILED", "Retrieved passage is out of scope.", 502
-                )
-            selected = (
-                selected_chars + len(chunk.text) <= source_chars and selected_count < source_items
+        evidence.extend(
+            store_source_evidence(
+                db,
+                run,
+                pin,
+                coverage,
+                chunks,
+                char_limit=source_chars,
+                item_limit=source_items,
+                label_offset=len(evidence),
             )
-            result = ResearchRetrievalResult(
-                research_run_id=run.id,
-                research_run_source_id=pin.id,
-                chunk_id=chunk.chunk_id,
-                source_rank=rank,
-                score=chunk.cosine_distance,
-                selected=selected,
-            )
-            db.add(result)
-            db.flush()
-            if selected:
-                item = EvidenceItem(
-                    research_run_id=run.id,
-                    retrieval_result_id=result.id,
-                    chunk_id=chunk.chunk_id,
-                    label=f"E{len(evidence) + 1}",
-                    excerpt=chunk.text,
-                    locator_snapshot=deepcopy(chunk.locator),
-                    source_display_name=pin.display_name,
-                    display_text=citation_display(pin.display_name, chunk),
-                )
-                db.add(item)
-                evidence.append(item)
-                selected_count += 1
-                selected_chars += len(chunk.text)
-        coverage.retrieved_chunk_count = len(chunks)
-        coverage.selected_chunk_count = selected_count
-        coverage.context_limited = selected_count < len(chunks)
-        coverage.status = (
-            "retrieved"
-            if selected_count
-            else "context_limited"
-            if chunks
-            else "no_relevant_evidence"
-        )
-        coverage.detail = (
-            "Some retrieved passages exceeded this source's context or evidence allowance."
-            if coverage.context_limited
-            else "No indexed passages matched the configured embedding model."
-            if not chunks
-            else None
         )
         coverage.duration_ms = round((perf_counter() - source_started) * 1000)
         db.commit()
@@ -169,4 +129,56 @@ def retrieve_evidence(
         "evidence_per_source": source_items,
     }
     db.commit()
+    return evidence
+
+
+def store_source_evidence(
+    db, run, pin, coverage, chunks, *, char_limit: int, item_limit: int, label_offset: int
+) -> list[EvidenceItem]:
+    """The same scope and context-budget rules for synchronous and queued retrieval."""
+    evidence = []
+    selected_chars = 0
+    for rank, chunk in enumerate(chunks, start=1):
+        if chunk.document_id != pin.document_id or chunk.source_id != pin.source_id:
+            raise NexusError(
+                "EVIDENCE_VALIDATION_FAILED", "Retrieved passage is out of scope.", 502
+            )
+        selected = selected_chars + len(chunk.text) <= char_limit and len(evidence) < item_limit
+        result = ResearchRetrievalResult(
+            research_run_id=run.id,
+            research_run_source_id=pin.id,
+            chunk_id=chunk.chunk_id,
+            source_rank=rank,
+            score=chunk.cosine_distance,
+            selected=selected,
+        )
+        db.add(result)
+        db.flush()
+        if selected:
+            item = EvidenceItem(
+                research_run_id=run.id,
+                retrieval_result_id=result.id,
+                chunk_id=chunk.chunk_id,
+                label=f"E{label_offset + len(evidence) + 1}",
+                excerpt=chunk.text,
+                locator_snapshot=deepcopy(chunk.locator),
+                source_display_name=pin.display_name,
+                display_text=citation_display(pin.display_name, chunk),
+            )
+            db.add(item)
+            evidence.append(item)
+            selected_chars += len(chunk.text)
+    coverage.retrieved_chunk_count = len(chunks)
+    coverage.selected_chunk_count = len(evidence)
+    coverage.context_limited = len(evidence) < len(chunks)
+    coverage.status = (
+        "retrieved" if evidence else "context_limited" if chunks else "no_relevant_evidence"
+    )
+    coverage.detail = (
+        "Some retrieved passages exceeded this source's context or evidence allowance."
+        if coverage.context_limited
+        else "No indexed passages matched the configured embedding model."
+        if not chunks
+        else None
+    )
     return evidence

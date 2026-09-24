@@ -6,18 +6,28 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookOpen } from 'lucide-react';
 import ResearchLibraryHeader from '@/components/ResearchLibraryHeader';
 import { useResearchStore } from '@/components/ResearchStore';
+import { ErrorNotice } from '@/components/Feedback';
 
 export default function NewResearch() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const createResearch = useResearchStore((state) => state.createResearch);
   const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!title.trim()) return;
-    const id = createResearch(title.trim(), description.trim());
-    router.push(`/research/${id}`);
+    setBusy(true);
+    setError(null);
+    try {
+      const id = await createResearch(title.trim(), description.trim());
+      router.push(`/research/${id}`);
+    } catch (failure) {
+      setError(failure);
+      setBusy(false);
+    }
   }
 
   return (
@@ -32,10 +42,11 @@ export default function NewResearch() {
         </div>
         <h1>Make room for a new question.</h1>
         <p className="muted">
-          Give your research a name. Its sources, drafts, and runs will stay
-          together in one workspace.
+          Give your research a name. Its sources, drafts, and runs will stay together in one
+          workspace.
         </p>
         <form onSubmit={handleSubmit} className="new-research-form">
+          <ErrorNotice error={error} />
           <label htmlFor="research-title">Research name</label>
           <input
             id="research-title"
@@ -63,16 +74,13 @@ export default function NewResearch() {
             <button
               className="ui-button ui-button-primary"
               type="submit"
-              disabled={!title.trim()}
+              disabled={!title.trim() || busy}
             >
-              Create research <ArrowRight size={16} />
+              {busy ? 'Creating…' : 'Create research'} <ArrowRight size={16} />
             </button>
           </div>
         </form>
-        <p className="draft-notice">
-          Creates a local workspace in this browser. No account or backend
-          request is involved.
-        </p>
+        <p className="draft-notice">Saved to your local database. No account is required.</p>
       </main>
     </div>
   );

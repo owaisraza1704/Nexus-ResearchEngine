@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import '../index.css';
 import '../styles/research.css';
 import '../styles/landing.css';
+import '../styles/product.css';
 
 export const metadata: Metadata = {
   title: 'Nexus | Agentic Research Engine',
@@ -23,9 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
         />
       </head>
-      <body>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

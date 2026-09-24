@@ -41,13 +41,15 @@ def create_run(
     mode: str = "comparison",
     top_k_per_source: int = 4,
     max_claims: int | None = None,
+    minimum_sources: int = 2,
+    commit: bool = True,
 ) -> ResearchRun:
     """Validate the entire source set before saving its immutable snapshot selection."""
     question = question.strip()
     if not question or len(question) > settings.max_question_chars:
         raise NexusError("INVALID_QUESTION", "The research question is empty or too long.")
-    if len(source_ids) < 2:
-        raise NexusError("SOURCE_SET_TOO_SMALL", "Select at least two sources.")
+    if len(source_ids) < minimum_sources:
+        raise NexusError("SOURCE_SET_TOO_SMALL", f"Select at least {minimum_sources} sources.")
     if len(source_ids) > settings.max_research_sources:
         raise NexusError("SOURCE_SET_TOO_LARGE", "Too many sources for one research run.")
     if len(set(source_ids)) != len(source_ids):
@@ -117,7 +119,10 @@ def create_run(
         db.add(pin)
         db.flush()
         db.add(SourceCoverage(research_run_id=run.id, research_run_source_id=pin.id))
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return run
 
 

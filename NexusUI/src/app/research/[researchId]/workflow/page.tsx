@@ -1,10 +1,9 @@
-import ResearchJob from '@/views/ResearchJob';
-import ResearchPreview from '@/components/ResearchPreview';
-
-export default function WorkflowPage() {
-  return (
-    <ResearchPreview title="Workflow">
-      <ResearchJob />
-    </ResearchPreview>
-  );
+import { redirect } from 'next/navigation';
+export default async function WorkflowPage({
+  params,
+}: {
+  params: Promise<{ researchId: string }>;
+}) {
+  const { researchId } = await params;
+  redirect(`/research/${researchId}/runs`);
 }

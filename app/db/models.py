@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -20,7 +21,7 @@ from app.db.base import Base
 
 
 class Workspace(Base):
-    """Initial durable tenant boundary for all user-visible records."""
+    """One local research workspace; not a user account or an authentication boundary."""
 
     __tablename__ = "workspaces"
     __table_args__ = (UniqueConstraint("slug", name="workspaces_slug_key"),)
@@ -29,6 +30,8 @@ class Workspace(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     policy: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    draft: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -57,6 +60,11 @@ class Source(Base):
     )
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    artifact_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ingestion_job_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    ingestion_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

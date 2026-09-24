@@ -14,31 +14,35 @@ import {
 } from 'lucide-react';
 import ResearchLibraryHeader from '@/components/ResearchLibraryHeader';
 import { useResearchStore } from '@/components/ResearchStore';
+import { ErrorNotice, Loading } from '@/components/Feedback';
 
 export default function ResearchLibrary() {
   const researches = useResearchStore((state) => state.researches);
+  const { loading, error, refresh } = useResearchStore((state) => state);
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const filtered = researches
     .filter((research) =>
-      `${research.title} ${research.description}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
+      `${research.title} ${research.description}`.toLowerCase().includes(query.toLowerCase()),
     )
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 
   return (
     <div className="research-library-page">
       <ResearchLibraryHeader />
       <main className="library-main">
+        <ErrorNotice error={error} />
+        {error && (
+          <button className="ui-button" onClick={() => refresh()}>
+            Reconnect
+          </button>
+        )}
+        {loading && <Loading text="Loading your saved research…" />}
         <div className="library-intro">
           <div>
             <p className="eyebrow">Your research, connected</p>
             <h1>A space for every question.</h1>
-            <p>
-              Keep your sources, questions, and findings together. Pick up where
-              you left off.
-            </p>
+            <p>Keep your sources, questions, and findings together. Pick up where you left off.</p>
           </div>
           <Link className="ui-button ui-button-primary" href="/research/new">
             <Plus size={17} /> New Research
@@ -58,11 +62,7 @@ export default function ResearchLibrary() {
                 placeholder="Search research…"
               />
             </label>
-            <div
-              className="view-switch"
-              role="group"
-              aria-label="Research view"
-            >
+            <div className="view-switch" role="group" aria-label="Research view">
               <button
                 aria-label="Grid view"
                 aria-pressed={view === 'grid'}
@@ -80,45 +80,30 @@ export default function ResearchLibrary() {
             </div>
           </div>
         </div>
-        <div
-          className={`research-cards ${
-            view === 'list' ? 'research-cards-list' : ''
-          }`}
-        >
+        <div className={`research-cards ${view === 'list' ? 'research-cards-list' : ''}`}>
           {filtered.map((research) => (
             <article className="research-card" key={research.id}>
               <div className="research-card-top">
                 <div className="research-card-icon">
                   <BookOpen size={21} />
                 </div>
-                <span
-                  className={`status-pill ${
-                    research.runs.length ? '' : 'status-draft'
-                  }`}
-                >
-                  {research.runs.length ? 'Sample results' : 'Draft'}
+                <span className={`status-pill ${research.runs.length ? '' : 'status-draft'}`}>
+                  {research.runs.length ? `${research.runs.length} runs` : 'Draft'}
                 </span>
               </div>
               <div className="research-card-description">
                 <h3>
-                  <Link href={`/research/${research.id}`}>
-                    {research.title}
-                  </Link>
+                  <Link href={`/research/${research.id}`}>{research.title}</Link>
                 </h3>
-                <p>
-                  {research.description ||
-                    'Your next research starts with a question.'}
-                </p>
+                <p>{research.description || 'Your next research starts with a question.'}</p>
               </div>
               <div className="research-card-meta">
                 <span>
                   <FileText size={13} />
-                  {research.sources.length}{' '}
-                  {research.sources.length === 1 ? 'source' : 'sources'}
+                  {research.sources.length} {research.sources.length === 1 ? 'source' : 'sources'}
                 </span>
                 <span>
-                  {research.runs.length}{' '}
-                  {research.runs.length === 1 ? 'run' : 'runs'}
+                  {research.runs.length} {research.runs.length === 1 ? 'run' : 'runs'}
                 </span>
               </div>
               <div className="research-card-footer">
@@ -128,12 +113,9 @@ export default function ResearchLibrary() {
                     month: 'short',
                     day: 'numeric',
                     timeZone: 'UTC',
-                  }).format(new Date(research.updatedAt))}
+                  }).format(new Date(research.updated_at))}
                 </span>
-                <Link
-                  href={`/research/${research.id}`}
-                  aria-label={`Open ${research.title}`}
-                >
+                <Link href={`/research/${research.id}`} aria-label={`Open ${research.title}`}>
                   Open research <ArrowRight size={15} />
                 </Link>
               </div>
@@ -149,7 +131,7 @@ export default function ResearchLibrary() {
             </Link>
           )}
         </div>
-        {filtered.length === 0 && (
+        {!loading && !error && filtered.length === 0 && (
           <div className="research-empty">
             <FolderOpen size={28} />
             <h2>No matching research</h2>
@@ -157,8 +139,8 @@ export default function ResearchLibrary() {
           </div>
         )}
         <p className="library-footnote">
-          Your changes stay in this browser. The example researches are here to
-          explore the interface.
+          Saved in your local database. Each research keeps its sources, drafts, and results
+          together.
         </p>
       </main>
     </div>

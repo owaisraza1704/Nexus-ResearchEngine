@@ -21,6 +21,12 @@ dependencies = [
     "openai>=1,<2",
     "python-dotenv>=1,<2",
     "pgvector>=0.3,<1",
+    "procrastinate==3.10.0",
+    "networkx>=3.4,<3.7",
+    "httpx>=0.28,<1",
+    "safehttpx==0.1.7",
+    "trafilatura>=2.2,<3",
+    "tiktoken>=0.8,<1",
 ]
 
 [project.optional-dependencies]

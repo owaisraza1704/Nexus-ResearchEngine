@@ -1,7 +1,4 @@
-from datetime import datetime, timezone
-from importlib.metadata import version
 from pathlib import Path
-from time import perf_counter
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
@@ -10,24 +7,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
-from app.db.models import ChunkEmbedding, Document, DocumentChunk, Source
+from app.db.models import Document, DocumentChunk, Source
 from app.db.session import get_db
-from app.embeddings.azure_openai import (
-    AzureEmbeddingConfigurationError,
-    AzureEmbeddingError,
-    AzureEmbeddingTimeoutError,
-    embed_texts,
-)
 from app.errors import NexusError
 from app.ingestion.artifacts import store_artifact
-from app.ingestion.docling_chunker import DocumentChunkingError, chunk_document
 from app.ingestion.docling_parser import (
-    DocumentHasNoText,
-    DocumentParseError,
     UnsupportedDocumentType,
     mime_type_for_path,
-    parse_document,
 )
+from app.ingestion.service import ingest_source
 
 router = APIRouter(prefix="/v1/sources", tags=["sources"])
 
@@ -80,13 +68,6 @@ def _document_summary(document: Document, chunk_count: int) -> DocumentSummary:
     )
 
 
-def _mark_source_failed(db: Session, source: Source, error: NexusError) -> None:
-    source.status = "failed"
-    source.error_code = error.code
-    source.error_detail = str(error)
-    db.commit()
-
-
 @router.post("/uploads", response_model=SourceUploadResponse, status_code=status.HTTP_201_CREATED)
 def upload_source(
     file: UploadFile = File(...),
@@ -94,7 +75,6 @@ def upload_source(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> SourceUploadResponse:
-    started = perf_counter()
     filename = Path(file.filename or "upload").name
     try:
         mime_type_for_path(Path(filename))
@@ -134,127 +114,12 @@ def upload_source(
         source.error_detail = None
     db.commit()
 
-    try:
-        parsed = parse_document(
-            artifact.path,
-            max_pages=settings.max_document_pages,
-            timeout_seconds=settings.ingestion_timeout_seconds,
-        )
-        if parsed.page_count is not None and parsed.page_count > settings.max_document_pages:
-            raise NexusError(
-                "DOCUMENT_TOO_MANY_PAGES",
-                f"The document exceeds the {settings.max_document_pages} page limit.",
-            )
-        if len(parsed.normalized_text) > settings.max_document_chars:
-            raise NexusError(
-                "DOCUMENT_TOO_LARGE",
-                f"Extracted text exceeds the {settings.max_document_chars} character limit.",
-            )
-        chunks = chunk_document(parsed)
-        if len(chunks) > settings.max_document_chunks:
-            raise NexusError(
-                "TOO_MANY_CHUNKS",
-                f"The document exceeds the {settings.max_document_chunks} chunk limit.",
-            )
-        if any(len(chunk.text) > settings.max_chunk_chars for chunk in chunks):
-            raise NexusError(
-                "CHUNK_TOO_LARGE",
-                f"A passage exceeds the {settings.max_chunk_chars} character limit. "
-                "Use a smaller document.",
-            )
-        remaining = settings.ingestion_timeout_seconds - (perf_counter() - started)
-        if remaining <= 0:
-            raise NexusError("INGESTION_TIMEOUT", "The ingestion time limit was exceeded.", 504)
-        embedding_settings = settings.model_copy(
-            update={"provider_timeout_seconds": min(settings.provider_timeout_seconds, remaining)}
-        )
-        embeddings = embed_texts([chunk.text for chunk in chunks], embedding_settings)
-        if perf_counter() - started > settings.ingestion_timeout_seconds:
-            raise NexusError("INGESTION_TIMEOUT", "The ingestion time limit was exceeded.", 504)
-    except DocumentHasNoText as exc:
-        error = NexusError("DOCUMENT_HAS_NO_TEXT", str(exc))
-        _mark_source_failed(db, source, error)
-        raise error from exc
-    except DocumentParseError as exc:
-        error = NexusError("DOCUMENT_PARSE_FAILED", str(exc))
-        _mark_source_failed(db, source, error)
-        raise error from exc
-    except DocumentChunkingError as exc:
-        error = NexusError("DOCUMENT_CHUNKING_FAILED", str(exc))
-        _mark_source_failed(db, source, error)
-        raise error from exc
-    except AzureEmbeddingConfigurationError as exc:
-        error = NexusError("EMBEDDING_NOT_CONFIGURED", str(exc), 503)
-        _mark_source_failed(db, source, error)
-        raise error from exc
-    except AzureEmbeddingTimeoutError as exc:
-        error = NexusError("EMBEDDING_TIMEOUT", str(exc), 504, retryable=True)
-        _mark_source_failed(db, source, error)
-        raise error from exc
-    except AzureEmbeddingError as exc:
-        error = NexusError("DOCUMENT_EMBEDDING_FAILED", str(exc), 502, retryable=True)
-        _mark_source_failed(db, source, error)
-        raise error from exc
-    except NexusError as error:
-        _mark_source_failed(db, source, error)
-        raise
-
-    document = Document(
-        source_id=source.id,
-        version=1,
-        status="ready",
-        mime_type=mime_type_for_path(Path(filename)),
-        parser_name=parsed.parser_name,
-        parser_version=parsed.parser_version,
-        normalized_text=parsed.normalized_text,
-        normalized_text_sha256=parsed.normalized_text_sha256,
-        page_count=parsed.page_count,
-        document_metadata={
-            "blocks": [
-                {"text": block.text, "label": block.label, "locator": block.locator}
-                for block in parsed.blocks
-            ],
-            "chunker_name": "docling.HierarchicalChunker",
-            "chunker_version": version("docling-core"),
-            "chunk_count": len(chunks),
-            "ingestion_duration_ms": round((perf_counter() - started) * 1000),
-        },
-        ready_at=datetime.now(timezone.utc),
-    )
-    db.add(document)
-    db.flush()
-    stored_chunks = [
-        DocumentChunk(
-            document_id=document.id,
-            sequence=chunk.sequence,
-            text=chunk.text,
-            text_sha256=chunk.text_sha256,
-            locator=chunk.locator,
-        )
-        for chunk in chunks
-    ]
-    db.add_all(stored_chunks)
-    db.flush()
-    db.add_all(
-        [
-            ChunkEmbedding(
-                chunk_id=chunk.id,
-                provider="azure_openai",
-                deployment=embedding.deployment,
-                model=embedding.model,
-                dimensions=len(embedding.vector),
-                embedding=list(embedding.vector),
-            )
-            for chunk, embedding in zip(stored_chunks, embeddings, strict=True)
-        ]
-    )
-    source.current_document_id = document.id
-    source.status = "ready"
-    db.commit()
+    source.artifact_name = artifact.path.name
+    document = ingest_source(db, source, artifact.path, settings)
     return SourceUploadResponse(
         source_id=source.id,
         status=source.status,
-        document=_document_summary(document, len(chunks)),
+        document=_document_summary(document, document.document_metadata["chunk_count"]),
     )
 
 

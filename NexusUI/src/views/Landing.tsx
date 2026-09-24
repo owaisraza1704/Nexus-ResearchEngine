@@ -11,7 +11,6 @@ import {
   Quote,
   Search,
 } from 'lucide-react';
-import { DEMO_RESEARCH_ID } from '@/data/research';
 
 export default function Landing() {
   return (
@@ -25,10 +24,7 @@ export default function Landing() {
           <a href="#features">Features</a>
           <a href="#philosophy">Our philosophy</a>
         </nav>
-        <Link
-          className="ui-button ui-button-primary landing-nav-cta"
-          href="/research"
-        >
+        <Link className="ui-button ui-button-primary landing-nav-cta" href="/research">
           Open research <ArrowUpRight size={14} />
         </Link>
       </header>
@@ -48,23 +44,18 @@ export default function Landing() {
               of answers.
             </h1>
             <p className="landing-description">
-              Bring your sources, questions, and discoveries into one place.
-              Follow the evidence. Build understanding that stays connected.
+              Bring your sources, questions, and discoveries into one place. Follow the evidence.
+              Build understanding that stays connected.
             </p>
             <div className="landing-hero-actions">
               <Link className="ui-button ui-button-primary" href="/research">
                 Start researching <ArrowRight size={16} />
               </Link>
-              <Link
-                className="ui-button"
-                href={`/research/${DEMO_RESEARCH_ID}`}
-              >
-                Explore demo
+              <Link className="ui-button" href="#how-it-works">
+                See how it works
               </Link>
             </div>
-            <p className="landing-hero-note">
-              Start with a question. Keep the bigger picture.
-            </p>
+            <p className="landing-hero-note">Start with a question. Keep the bigger picture.</p>
           </div>
 
           <div
@@ -121,8 +112,8 @@ export default function Landing() {
                   <CheckCircle2 size={14} />
                 </div>
                 <p>
-                  “Bidirectional attention considers the full context of a
-                  sequence…” <span>[C1]</span>
+                  “Bidirectional attention considers the full context of a sequence…”{' '}
+                  <span>[C1]</span>
                 </p>
                 <div className="preview-evidence-footer">
                   <span>architecture.pdf</span>
@@ -135,8 +126,8 @@ export default function Landing() {
                   <Quote size={13} /> A GROUNDED ANSWER
                 </span>
                 <p>
-                  Different architectures, different ways of attending to
-                  context. Every insight linked to its source.
+                  Different architectures, different ways of attending to context. Every insight
+                  linked to its source.
                 </p>
               </div>
             </div>
@@ -164,8 +155,8 @@ export default function Landing() {
               <BookOpen size={23} />
               <h3>Start a research</h3>
               <p>
-                Give your question a dedicated space. Keep each investigation
-                focused, with its own context.
+                Give your question a dedicated space. Keep each investigation focused, with its own
+                context.
               </p>
             </article>
             <article>
@@ -173,8 +164,8 @@ export default function Landing() {
               <Layers size={23} />
               <h3>Bring the evidence together</h3>
               <p>
-                Gather the documents that matter. Explore the passages and ideas
-                behind your research.
+                Gather the documents that matter. Explore the passages and ideas behind your
+                research.
               </p>
             </article>
             <article>
@@ -182,8 +173,7 @@ export default function Landing() {
               <GitBranch size={23} />
               <h3>Connect the dots</h3>
               <p>
-                Build toward grounded answers, traceable citations, and findings
-                you can return to.
+                Build toward grounded answers, traceable citations, and findings you can return to.
               </p>
             </article>
           </div>
@@ -198,8 +188,8 @@ export default function Landing() {
               <em>Not just the last answer.</em>
             </h2>
             <p>
-              Nexus is designed to keep the context of research intact—from your
-              first source to your next question.
+              Nexus is designed to keep the context of research intact—from your first source to
+              your next question.
             </p>
             <Link href="/research">
               Find your research space <ArrowRight size={15} />
@@ -210,28 +200,21 @@ export default function Landing() {
               <Check size={17} />
               <div>
                 <h3>A home for every research</h3>
-                <p>
-                  Separate workspaces. Focused questions. Everything in its
-                  place.
-                </p>
+                <p>Separate workspaces. Focused questions. Everything in its place.</p>
               </div>
             </li>
             <li>
               <Check size={17} />
               <div>
                 <h3>Evidence you can inspect</h3>
-                <p>
-                  A clear path from a finding to the passage that supports it.
-                </p>
+                <p>A clear path from a finding to the passage that supports it.</p>
               </div>
             </li>
             <li>
               <Check size={17} />
               <div>
                 <h3>Context worth keeping</h3>
-                <p>
-                  Return to your questions and build on what you have explored.
-                </p>
+                <p>Return to your questions and build on what you have explored.</p>
               </div>
             </li>
           </ul>
@@ -245,9 +228,8 @@ export default function Landing() {
             <em>Understanding is the goal.</em>
           </h2>
           <p>
-            Research should help you see why—not just tell you what. We believe
-            in connected context, visible evidence, and room to ask the next
-            question.
+            Research should help you see why—not just tell you what. We believe in connected
+            context, visible evidence, and room to ask the next question.
           </p>
           <Link className="ui-button ui-button-primary" href="/research">
             Start your next research <ArrowRight size={16} />
