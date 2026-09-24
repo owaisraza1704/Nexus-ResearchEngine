@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
@@ -13,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 from app.config import Settings
 
 StructuredOutputT = TypeVar("StructuredOutputT", bound=BaseModel)
+logger = logging.getLogger(__name__)
 
 
 class AzureLLMConfigurationError(ValueError):
@@ -84,6 +86,12 @@ def generate_structured(
     except (ValidationError, LengthFinishReasonError, ContentFilterFinishReasonError) as exc:
         raise AzureLLMOutputError("Azure OpenAI returned an invalid or incomplete answer") from exc
     except APIError as exc:
+        logger.warning(
+            "azure_generation_failed type=%s status=%s request_id=%s",
+            type(exc).__name__,
+            getattr(exc, "status_code", None),
+            getattr(exc, "request_id", None),
+        )
         raise AzureLLMError("Azure OpenAI structured-generation request failed") from exc
 
     choices = list(getattr(response, "choices", ()))

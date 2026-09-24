@@ -71,17 +71,18 @@ def search_chunks(
         .join(ChunkEmbedding, ChunkEmbedding.chunk_id == DocumentChunk.id)
         .where(
             Source.id.in_(selected_source_ids),
-            Source.status == "ready",
             Document.status == "ready",
             ChunkEmbedding.provider == "azure_openai",
             ChunkEmbedding.deployment == deployment,
             ChunkEmbedding.dimensions == expected_dimensions,
         )
-        .order_by(cosine_distance, DocumentChunk.sequence)
+        .order_by(cosine_distance, DocumentChunk.sequence, DocumentChunk.id)
         .limit(top_k)
     )
     if document_id is None:
-        statement = statement.where(Source.current_document_id == Document.id)
+        statement = statement.where(
+            Source.current_document_id == Document.id, Source.status == "ready"
+        )
     else:
         statement = statement.where(Document.id == document_id)
     if embedding_model is not None:

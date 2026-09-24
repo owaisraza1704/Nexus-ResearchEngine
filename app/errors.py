@@ -12,9 +12,11 @@ class NexusError(Exception):
         *,
         retryable: bool = False,
         query_id: UUID | None = None,
+        run_id: UUID | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.status_code = status_code
         self.retryable = retryable
         self.query_id = query_id
+        self.run_id = run_id

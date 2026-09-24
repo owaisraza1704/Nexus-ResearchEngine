@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.answers import router as answers_router
 from app.api.health import router as health_router
+from app.api.research import router as research_router
 from app.api.retrieval import router as retrieval_router
 from app.api.sources import router as sources_router
 from app.errors import NexusError
@@ -26,6 +27,8 @@ def create_app() -> FastAPI:
         detail = {"code": error.code, "message": str(error), "retryable": error.retryable}
         if error.query_id is not None:
             detail["query_id"] = str(error.query_id)
+        if error.run_id is not None:
+            detail["run_id"] = str(error.run_id)
         return JSONResponse(status_code=error.status_code, content={"error": detail})
 
     @app.exception_handler(RequestValidationError)
@@ -60,6 +63,7 @@ def create_app() -> FastAPI:
 
     app.include_router(answers_router)
     app.include_router(health_router)
+    app.include_router(research_router)
     app.include_router(retrieval_router)
     app.include_router(sources_router)
     return app

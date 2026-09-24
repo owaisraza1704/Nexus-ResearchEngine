@@ -94,17 +94,25 @@ def test_structured_generation_times_out_without_retry(mock_azure) -> None:
     assert len(calls) == 1
 
 
-def test_structured_generation_reports_provider_errors_safely(mock_azure) -> None:
+def test_structured_generation_reports_provider_errors_safely(
+    mock_azure, caplog, monkeypatch
+) -> None:
+    # In-process Alembic tests can disable loggers created before their logging setup.
+    monkeypatch.setattr(azure_openai.logger, "disabled", False)
     mock_azure(
         azure_openai,
         lambda request: httpx.Response(
             429,
+            headers={"x-request-id": "test-provider-request"},
             json={"error": {"message": "private provider detail", "type": "rate_limit"}},
         ),
     )
     with pytest.raises(azure_openai.AzureLLMError, match="request failed") as error:
         azure_openai.generate_structured("Context", StructuredAnswer, _settings())
     assert "private provider detail" not in str(error.value)
+    assert "type=RateLimitError status=429 request_id=test-provider-request" in caplog.text
+    assert "private provider detail" not in caplog.text
+    assert "test-key" not in caplog.text
 
 
 def test_structured_generation_requires_configuration() -> None:

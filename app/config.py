@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = Field(default=45.0, gt=0)
     answer_timeout_seconds: float = Field(default=90.0, gt=0)
     ingestion_timeout_seconds: float = Field(default=180.0, gt=0)
+    max_research_sources: int = Field(default=5, ge=2)
+    max_research_context_chars: int = Field(default=48_000, ge=1)
+    max_research_evidence: int = Field(default=20, ge=1)
+    max_research_claims: int = Field(default=12, ge=1)
+    max_research_output_chars: int = Field(default=24_000, ge=1)
+    max_research_output_tokens: int = Field(default=6_000, ge=1)
+    research_timeout_seconds: float = Field(default=120.0, gt=0)
     azure_openai_endpoint: str | None = None
     azure_openai_api_key: str | None = None
     azure_openai_api_version: str | None = None

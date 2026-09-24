@@ -214,3 +214,41 @@ def azure_api(mock_azure):
     mock_azure(embeddings, handler)
     mock_azure(llm, handler)
     return state
+
+
+@pytest.fixture
+def research_sources(ready_source):
+    return [
+        ready_source(("Alpha retains records for 30 days and executes requests synchronously.",)),
+        ready_source(("Beta retains records for 90 days and executes requests asynchronously.",)),
+    ]
+
+
+@pytest.fixture
+def research_azure(azure_api):
+    azure_api["answer"] = {
+        "status": "completed",
+        "summary": "Alpha retains records for 30 days [E1]; Beta retains them for 90 days [E2].",
+        "limitation": None,
+        "relevant_evidence_ids": ["E1", "E2"],
+        "claims": [
+            {
+                "text": "Alpha retains records for 30 days.",
+                "claim_type": "comparison",
+                "support_status": "supported",
+                "evidence": [
+                    {"evidence_id": "E1", "relationship": "supports", "explanation": None}
+                ],
+            },
+            {
+                "text": "Beta retains records for 90 days.",
+                "claim_type": "comparison",
+                "support_status": "supported",
+                "evidence": [
+                    {"evidence_id": "E2", "relationship": "supports", "explanation": None}
+                ],
+            },
+        ],
+        "gaps": [],
+    }
+    return azure_api

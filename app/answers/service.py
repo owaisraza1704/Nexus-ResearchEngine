@@ -21,6 +21,7 @@ from app.llm.azure_openai import (
     AzureLLMTimeoutError,
     generate_structured,
 )
+from app.retrieval.citations import citation_display as _citation_display
 from app.retrieval.service import fail_query, retrieve_and_save
 from app.retrieval.vector_search import RetrievedChunk
 
@@ -223,20 +224,3 @@ def _build_prompt(question: str, chunks: Sequence[RetrievedChunk]) -> str:
         },
         ensure_ascii=False,
     )
-
-
-def _citation_display(source_name: str, chunk: RetrievedChunk) -> str:
-    pages = sorted(
-        {
-            provenance["page_no"]
-            for item in chunk.locator.get("doc_items", [])
-            for provenance in item.get("prov", [])
-            if provenance.get("page_no") is not None
-        }
-    )
-    if pages:
-        return f"{source_name}, page(s) {', '.join(str(page) for page in pages)}"
-    headings = chunk.locator.get("headings", [])
-    if headings:
-        return f"{source_name}, {' > '.join(headings)}, chunk {chunk.sequence + 1}"
-    return f"{source_name}, chunk {chunk.sequence + 1}"
