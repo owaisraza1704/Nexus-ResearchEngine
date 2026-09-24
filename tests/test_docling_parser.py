@@ -36,11 +36,11 @@ class FakeConverter:
         self.document = document
         self.error = error
 
-    def convert(self, path: Path) -> SimpleNamespace:
+    def convert(self, path: Path, **kwargs) -> SimpleNamespace:
         del path
         if self.error:
             raise self.error
-        return SimpleNamespace(document=self.document)
+        return SimpleNamespace(document=self.document, status="success")
 
 
 def test_parse_document_normalizes_text_and_preserves_provenance(
@@ -64,7 +64,7 @@ def test_parse_document_normalizes_text_and_preserves_provenance(
     monkeypatch.setattr(
         docling_parser,
         "_document_converter",
-        lambda: FakeConverter(document=document),
+        lambda timeout: FakeConverter(document=document),
     )
 
     parsed = parse_document(Path("sample.pdf"))
@@ -97,7 +97,7 @@ def test_parse_document_rejects_no_text(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(
         docling_parser,
         "_document_converter",
-        lambda: FakeConverter(document=document),
+        lambda timeout: FakeConverter(document=document),
     )
 
     with pytest.raises(DocumentHasNoText):
@@ -108,8 +108,8 @@ def test_parse_document_wraps_parser_failures(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(
         docling_parser,
         "_document_converter",
-        lambda: FakeConverter(error=ValueError("malformed")),
+        lambda timeout: FakeConverter(error=ValueError("malformed")),
     )
 
-    with pytest.raises(DocumentParseError, match="Docling could not parse"):
+    with pytest.raises(DocumentParseError, match="Docling could not fully parse"):
         parse_document(Path("broken.pdf"))

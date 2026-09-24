@@ -51,15 +51,25 @@ def mime_type_for_path(path: Path) -> str:
     return mime_type
 
 
-def parse_document(path: Path) -> ParsedDocument:
+def parse_document(
+    path: Path, *, max_pages: int = 100, timeout_seconds: float = 180.0
+) -> ParsedDocument:
     """Parse one supported document and preserve its source provenance."""
 
     mime_type_for_path(path)
 
     try:
-        document = _document_converter().convert(path).document
+        from docling.datamodel.base_models import ConversionStatus
+
+        conversion = _document_converter(timeout_seconds).convert(path, max_num_pages=max_pages)
+        if conversion.status != ConversionStatus.SUCCESS:
+            raise DocumentParseError("Docling did not finish the entire document")
+        document = conversion.document
     except Exception as exc:
-        raise DocumentParseError(f"Docling could not parse {path.name}") from exc
+        raise DocumentParseError(
+            f"Docling could not fully parse {path.name}. "
+            f"Use a valid text PDF (at most {max_pages} pages) or DOCX within the parse time limit."
+        ) from exc
 
     blocks: list[ParsedBlock] = []
     normalized_parts: list[str] = []
@@ -90,7 +100,7 @@ def parse_document(path: Path) -> ParsedDocument:
         raise DocumentHasNoText("The document contains no extractable text")
 
     pages = getattr(document, "pages", None)
-    page_count = len(pages) if pages is not None else None
+    page_count = len(pages) if pages else None
 
     return ParsedDocument(
         normalized_text="".join(normalized_parts),
@@ -145,7 +155,19 @@ def _docling_version() -> str:
         return "unknown"
 
 
-def _document_converter() -> Any:
-    from docling.document_converter import DocumentConverter
+def _document_converter(timeout_seconds: float) -> Any:
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
 
-    return DocumentConverter()
+    return DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=PdfPipelineOptions(
+                    do_ocr=False,
+                    do_table_structure=False,
+                    document_timeout=timeout_seconds,
+                )
+            )
+        }
+    )

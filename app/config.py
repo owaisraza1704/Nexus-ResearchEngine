@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,8 +11,19 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+psycopg://nexus:nexus@localhost:5432/nexus"
     artifact_store_path: Path = Path(".data/artifacts")
-    max_upload_bytes: int = 20 * 1024 * 1024
-    max_document_pages: int = 100
+    max_upload_bytes: int = Field(default=20 * 1024 * 1024, ge=1)
+    max_document_pages: int = Field(default=100, ge=1)
+    max_document_chars: int = Field(default=500_000, ge=1)
+    max_document_chunks: int = Field(default=1_000, ge=1)
+    max_chunk_chars: int = Field(default=16_000, ge=1)
+    max_question_chars: int = Field(default=4_000, ge=1)
+    max_top_k: int = Field(default=20, ge=1)
+    max_context_chars: int = Field(default=24_000, ge=1)
+    max_answer_chars: int = Field(default=12_000, ge=1)
+    max_answer_tokens: int = Field(default=2_000, ge=1)
+    provider_timeout_seconds: float = Field(default=45.0, gt=0)
+    answer_timeout_seconds: float = Field(default=90.0, gt=0)
+    ingestion_timeout_seconds: float = Field(default=180.0, gt=0)
     azure_openai_endpoint: str | None = None
     azure_openai_api_key: str | None = None
     azure_openai_api_version: str | None = None

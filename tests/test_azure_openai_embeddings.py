@@ -1,18 +1,15 @@
-from types import SimpleNamespace
+import json
 
+import httpx
 import pytest
 
 from app.config import Settings
 from app.embeddings import azure_openai
-from app.embeddings.azure_openai import (
-    AzureEmbeddingConfigurationError,
-    AzureEmbeddingError,
-    embed_text,
-)
 
 
 def _settings() -> Settings:
     return Settings(
+        _env_file=None,
         azure_openai_endpoint="https://example.openai.azure.com/",
         azure_openai_api_key="test-key",
         azure_openai_api_version="2024-10-21",
@@ -21,92 +18,75 @@ def _settings() -> Settings:
     )
 
 
-def test_embed_text_maps_azure_sdk_request_and_response(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: dict[str, object] = {}
+def _response(vectors):
+    return httpx.Response(
+        200,
+        json={
+            "object": "list",
+            "model": "embedding-large-version",
+            "data": [
+                {"object": "embedding", "index": index, "embedding": vector}
+                for index, vector in vectors
+            ],
+            "usage": {"prompt_tokens": 4, "total_tokens": 4},
+        },
+    )
 
-    class FakeEmbeddings:
-        def create(self, **kwargs: object) -> SimpleNamespace:
-            calls.update(kwargs)
-            return SimpleNamespace(
-                data=[SimpleNamespace(embedding=[0.1, 0.2, 0.3])],
-                model="embedding-large",
-                usage=SimpleNamespace(prompt_tokens=4),
-            )
 
-    class FakeAzureOpenAI:
-        def __init__(self, **kwargs: object) -> None:
-            calls.update(kwargs)
-            self.embeddings = FakeEmbeddings()
+def test_embed_text_maps_sdk_request_and_response(mock_azure) -> None:
+    def handler(request):
+        payload = json.loads(request.content)
+        assert payload["model"] == "embedding-large"
+        assert payload["input"] == ["research text"]
+        return _response([(0, [0.1, 0.2, 0.3])])
 
-    monkeypatch.setattr(azure_openai, "AzureOpenAI", FakeAzureOpenAI)
-
-    result = embed_text("research text", _settings())
-
-    assert calls["api_key"] == "test-key"
-    assert calls["azure_endpoint"] == "https://example.openai.azure.com/"
-    assert calls["api_version"] == "2024-10-21"
-    assert calls["model"] == "embedding-large"
-    assert calls["input"] == ["research text"]
+    mock_azure(azure_openai, handler)
+    result = azure_openai.embed_text("research text", _settings())
     assert result.vector == (0.1, 0.2, 0.3)
-    assert result.model == "embedding-large"
+    assert result.model == "embedding-large-version"
     assert result.deployment == "embedding-large"
     assert result.prompt_tokens == 4
 
 
-def test_embed_texts_sorts_batch_results_by_index(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class FakeAzureOpenAI:
-        def __init__(self, **kwargs: object) -> None:
-            del kwargs
-            self.embeddings = SimpleNamespace(
-                create=lambda **kwargs: SimpleNamespace(
-                    data=[
-                        SimpleNamespace(index=1, embedding=[0.4, 0.5, 0.6]),
-                        SimpleNamespace(index=0, embedding=[0.1, 0.2, 0.3]),
-                    ],
-                    model="embedding-large",
-                    usage=None,
-                )
-            )
-
-    monkeypatch.setattr(azure_openai, "AzureOpenAI", FakeAzureOpenAI)
-
+def test_embed_texts_sorts_batch_results(mock_azure) -> None:
+    mock_azure(
+        azure_openai,
+        lambda request: _response(
+            [
+                (1, [0.4, 0.5, 0.6]),
+                (0, [0.1, 0.2, 0.3]),
+            ]
+        ),
+    )
     results = azure_openai.embed_texts(["first", "second"], _settings())
-
-    assert [result.vector for result in results] == [
-        (0.1, 0.2, 0.3),
-        (0.4, 0.5, 0.6),
-    ]
+    assert [result.vector for result in results] == [(0.1, 0.2, 0.3), (0.4, 0.5, 0.6)]
 
 
-def test_embed_text_requires_azure_settings() -> None:
-    with pytest.raises(AzureEmbeddingConfigurationError, match="azure_openai_endpoint"):
-        embed_text("research text", Settings(_env_file=None))
+@pytest.mark.parametrize("vectors", [[(0, [0.1, 0.2])], []])
+def test_embed_text_rejects_wrong_dimensions_or_count(mock_azure, vectors) -> None:
+    mock_azure(azure_openai, lambda request: _response(vectors))
+    with pytest.raises(azure_openai.AzureEmbeddingError):
+        azure_openai.embed_text("research text", _settings())
 
 
-def test_embed_text_rejects_unexpected_dimensions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class FakeAzureOpenAI:
-        def __init__(self, **kwargs: object) -> None:
-            del kwargs
-            self.embeddings = SimpleNamespace(
-                create=lambda **kwargs: SimpleNamespace(
-                    data=[SimpleNamespace(embedding=[0.1, 0.2])],
-                    model="embedding-large",
-                    usage=None,
-                )
-            )
-
-    monkeypatch.setattr(azure_openai, "AzureOpenAI", FakeAzureOpenAI)
-
-    with pytest.raises(AzureEmbeddingError, match="unexpected embedding dimension"):
-        embed_text("research text", _settings())
+def test_embed_text_requires_configuration() -> None:
+    with pytest.raises(azure_openai.AzureEmbeddingConfigurationError):
+        azure_openai.embed_text("research text", Settings(_env_file=None))
 
 
-def test_embed_text_rejects_empty_text() -> None:
+def test_embed_text_rejects_empty_input() -> None:
     with pytest.raises(ValueError, match="empty text"):
-        embed_text("  ", _settings())
+        azure_openai.embed_text("  ", _settings())
+
+
+def test_embedding_timeout_is_explicit_and_not_retried(mock_azure) -> None:
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        raise httpx.ReadTimeout("timeout", request=request)
+
+    mock_azure(azure_openai, handler)
+    with pytest.raises(azure_openai.AzureEmbeddingTimeoutError):
+        azure_openai.embed_text("research text", _settings())
+    assert len(calls) == 1

@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from openai import AzureOpenAI
+from openai import APIError, APITimeoutError, AzureOpenAI
 
 from app.config import Settings
 
@@ -12,6 +12,10 @@ class AzureEmbeddingConfigurationError(ValueError):
 
 class AzureEmbeddingError(RuntimeError):
     """Raised when Azure OpenAI cannot return a valid embedding."""
+
+
+class AzureEmbeddingTimeoutError(AzureEmbeddingError):
+    """The bounded embedding request timed out."""
 
 
 @dataclass(frozen=True)
@@ -49,14 +53,22 @@ def embed_texts(texts: Sequence[str], settings: Settings) -> tuple[EmbeddingResu
     )
 
     try:
-        client = AzureOpenAI(
+        with AzureOpenAI(
             api_key=api_key,
             azure_endpoint=endpoint,
             api_version=api_version,
-        )
-        response = client.embeddings.create(input=list(text_values), model=deployment)
-        response_data = list(response.data)
-    except Exception as exc:
+            timeout=settings.provider_timeout_seconds,
+            max_retries=0,
+        ) as client:
+            response = client.embeddings.create(
+                input=list(text_values),
+                model=deployment,
+                encoding_format="float",
+            )
+            response_data = list(response.data)
+    except APITimeoutError as exc:
+        raise AzureEmbeddingTimeoutError("Azure OpenAI embedding request timed out") from exc
+    except APIError as exc:
         raise AzureEmbeddingError("Azure OpenAI embedding request failed") from exc
 
     if len(response_data) != len(text_values):

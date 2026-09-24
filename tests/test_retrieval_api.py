@@ -1,90 +1,125 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+import httpx
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
-from app.api import retrieval as retrieval_api
-from app.config import Settings
-from app.main import app
-from app.retrieval.vector_search import RetrievedChunk
-
-
-def test_retrieval_endpoint_embeds_and_returns_ranked_chunks(monkeypatch) -> None:
-    database = object()
-    settings = Settings()
-    source_id = uuid4()
-    chunk = RetrievedChunk(
-        chunk_id=uuid4(),
-        document_id=uuid4(),
-        source_id=source_id,
-        sequence=2,
-        text="Relevant research text",
-        locator={"page": 3},
-        cosine_distance=0.17,
-    )
-    calls = {}
-
-    def fake_retrieve_question(
-        value_db,
-        question,
-        source_ids,
-        value_settings,
-        *,
-        top_k,
-    ):
-        calls.update(
-            {
-                "db": value_db,
-                "question": question,
-                "source_ids": source_ids,
-                "settings": value_settings,
-                "top_k": top_k,
-            }
-        )
-        return (chunk,)
-
-    monkeypatch.setattr(retrieval_api, "retrieve_question", fake_retrieve_question)
-    app.dependency_overrides[retrieval_api.get_db] = lambda: database
-    app.dependency_overrides[retrieval_api.get_settings] = lambda: settings
-
-    try:
-        response = TestClient(app).post(
-            "/v1/retrieval",
-            json={
-                "question": "What is relevant?",
-                "source_ids": [str(source_id)],
-                "top_k": 3,
-            },
-        )
-
-        assert response.status_code == 200
-        assert response.json() == {
-            "chunks": [
-                {
-                    "chunk_id": str(chunk.chunk_id),
-                    "document_id": str(chunk.document_id),
-                    "source_id": str(chunk.source_id),
-                    "sequence": 2,
-                    "text": "Relevant research text",
-                    "locator": {"page": 3},
-                    "cosine_distance": 0.17,
-                }
-            ]
-        }
-        assert calls == {
-            "db": database,
-            "question": "What is relevant?",
-            "source_ids": [source_id],
-            "settings": settings,
-            "top_k": 3,
-        }
-    finally:
-        app.dependency_overrides.clear()
+from app.db.models import Query, RetrievalResult
+from app.main import create_app
 
 
-def test_retrieval_endpoint_rejects_non_positive_top_k() -> None:
-    response = TestClient(app).post(
+def test_retrieval_saves_query_rankings_and_source_scope(client, db, ready_source, azure_api):
+    source, document, chunks = ready_source()
+    other, _, _ = ready_source(["Unselected source must never be returned."])
+    response = client.post(
         "/v1/retrieval",
-        json={"question": "What is relevant?", "source_ids": [], "top_k": 0},
+        json={
+            "question": "What does Nexus produce?",
+            "source_ids": [str(source.id)],
+            "top_k": 2,
+        },
     )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["document_id"] == str(document.id)
+    assert [item["chunk_id"] for item in body["chunks"]] == [str(chunk.id) for chunk in chunks]
+    assert all(item["source_id"] != str(other.id) for item in body["chunks"])
+    query = db.get(Query, UUID(body["query_id"]))
+    assert query.status == "completed"
+    assert query.completed_at is not None
+    assert query.document_id == document.id
+    assert query.retrieval_config["embedding_model"] == "text-embedding-3-large"
+    results = db.scalars(
+        select(RetrievalResult)
+        .where(RetrievalResult.query_id == query.id)
+        .order_by(RetrievalResult.rank)
+    ).all()
+    assert [item.rank for item in results] == [1, 2]
+    assert results[0].cosine_distance == pytest.approx(0, abs=1e-6)
+    assert results[1].cosine_distance > results[0].cosine_distance
+    assert all(not result.selected for result in results)
+    assert len(azure_api["calls"]) == 1
 
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"question": "Question", "source_ids": [], "top_k": 0},
+        {"question": "Question", "source_ids": [str(uuid4()), str(uuid4())]},
+        {"question": "", "source_ids": [str(uuid4())]},
+    ],
+)
+def test_retrieval_rejects_invalid_request_shape(payload):
+    response = TestClient(create_app()).post("/v1/retrieval", json=payload)
     assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+@pytest.mark.parametrize(
+    ("question", "top_k", "code"),
+    [
+        ("  ", 5, "INVALID_QUESTION"),
+        ("x" * 4001, 5, "INVALID_QUESTION"),
+        ("Question", 21, "INVALID_TOP_K"),
+    ],
+)
+def test_retrieval_rejects_bounds_before_provider(client, db, azure_api, question, top_k, code):
+    response = client.post(
+        "/v1/retrieval",
+        json={
+            "question": question,
+            "source_ids": [str(uuid4())],
+            "top_k": top_k,
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == code
+    assert azure_api["calls"] == []
+    assert db.scalar(select(func.count()).select_from(Query)) == 0
+
+
+def test_missing_source_is_not_reported_as_insufficient_context(client, azure_api):
+    response = client.post(
+        "/v1/retrieval",
+        json={
+            "question": "Question",
+            "source_ids": [str(uuid4())],
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "SOURCE_NOT_FOUND"
+    assert azure_api["calls"] == []
+
+
+def test_failed_source_cannot_be_queried(client, db, ready_source, azure_api):
+    source, _, _ = ready_source()
+    source.status = "failed"
+    db.commit()
+    response = client.post(
+        "/v1/retrieval",
+        json={
+            "question": "Question",
+            "source_ids": [str(source.id)],
+        },
+    )
+    assert response.status_code == 409
+    assert azure_api["calls"] == []
+
+
+def test_embedding_timeout_saves_failed_query(client, db, ready_source, azure_api):
+    source, _, _ = ready_source()
+    azure_api["embedding_error"] = httpx.ReadTimeout("private transport details")
+    response = client.post(
+        "/v1/retrieval",
+        json={
+            "question": "Question",
+            "source_ids": [str(source.id)],
+        },
+    )
+    assert response.status_code == 504
+    assert "private" not in response.text
+    query = db.get(Query, UUID(response.json()["error"]["query_id"]))
+    assert query.status == "failed"
+    assert query.error_code == "EMBEDDING_TIMEOUT"
+    assert len(azure_api["calls"]) == 1

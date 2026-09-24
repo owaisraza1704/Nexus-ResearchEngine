@@ -1,0 +1,30 @@
+{
+  "source_content_sha256": "e3722e2797495532e62a6602b566bb2e626faa0369bcef190283a40593be6ea5",
+  "cases": [
+    {
+      "id": "exact_objective",
+      "question": "What is the project's main objective?",
+      "expected_status": "completed"
+    },
+    {
+      "id": "paraphrased_retrieval",
+      "question": "How does the proposed search approach handle both specific wording and broader meaning?",
+      "expected_status": "completed"
+    },
+    {
+      "id": "planner_and_dependencies",
+      "question": "What is the planner's role, and when can its tasks run concurrently?",
+      "expected_status": "completed"
+    },
+    {
+      "id": "missing_budget",
+      "question": "What is the exact approved development budget in Indian rupees?",
+      "expected_status": "insufficient_context"
+    },
+    {
+      "id": "outside_knowledge",
+      "question": "What is the capital city of France?",
+      "expected_status": "insufficient_context"
+    }
+  ]
+}

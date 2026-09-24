@@ -1,390 +1,192 @@
-import uuid
-from pathlib import Path
-from typing import Any
+from io import BytesIO
+from unittest.mock import Mock
+from uuid import UUID, uuid4
 
+import pytest
+from docx import Document as WordDocument
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
-from app.api import sources as sources_api
-from app.config import Settings
+from app.config import get_settings
 from app.db.models import ChunkEmbedding, Document, DocumentChunk, Source
-from app.embeddings.azure_openai import EmbeddingResult
-from app.ingestion.docling_chunker import ChunkDraft
-from app.ingestion.docling_parser import DocumentHasNoText, ParsedBlock, ParsedDocument
-from app.main import app
+from app.db.session import get_db
+from app.ingestion.docling_parser import DocumentHasNoText
+from app.main import create_app
 
 
-class InMemorySession:
-    def __init__(self) -> None:
-        self.sources: dict[uuid.UUID, Source] = {}
-        self.documents: dict[uuid.UUID, Document] = {}
-        self.chunks: dict[uuid.UUID, DocumentChunk] = {}
-        self.embeddings: dict[uuid.UUID, ChunkEmbedding] = {}
-        self.duplicate_source: Source | None = None
-
-    def scalar(self, statement: Any) -> Source | None:
-        del statement
-        return self.duplicate_source
-
-    def add(self, value: Source | Document | DocumentChunk | ChunkEmbedding) -> None:
-        if value.id is None:
-            value.id = uuid.uuid4()
-        if isinstance(value, Source):
-            self.sources[value.id] = value
-        elif isinstance(value, Document):
-            self.documents[value.id] = value
-        elif isinstance(value, DocumentChunk):
-            self.chunks[value.id] = value
-        else:
-            self.embeddings[value.id] = value
-
-    def commit(self) -> None:
-        return None
-
-    def flush(self) -> None:
-        return None
-
-    def refresh(self, value: Source | Document) -> None:
-        del value
-
-    def get(
-        self,
-        model: type[Source] | type[Document],
-        object_id: uuid.UUID,
-    ) -> Source | Document | None:
-        if model is Source:
-            return self.sources.get(object_id)
-        return self.documents.get(object_id)
-
-    def close(self) -> None:
-        return None
+@pytest.fixture
+def word_bytes():
+    document = WordDocument()
+    document.add_heading("Research", level=1)
+    document.add_paragraph("Nexus produces cited research answers.")
+    document.add_heading("Evidence", level=1)
+    document.add_paragraph("Sources retain document versions.")
+    buffer = BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
 
 
-def test_upload_source_persists_and_exposes_parsed_blocks(
+def test_upload_docx_persists_and_exposes_document_chunks(
+    client,
+    db,
+    azure_api,
+    word_bytes,
+):
+    response = client.post(
+        "/v1/sources/uploads",
+        files={
+            "file": ("research.docx", word_bytes),
+        },
+        data={"display_name": "Research notes"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["document"]["chunk_count"] >= 2
+    source_id = body["source_id"]
+    detail = client.get(f"/v1/sources/{source_id}").json()
+    assert "Nexus produces cited research answers." in detail["normalized_text"]
+    assert detail["document"]["page_count"] is None
+    chunks = client.get(f"/v1/sources/{source_id}/chunks").json()
+    assert chunks["total"] == body["document"]["chunk_count"]
+    assert [chunk["sequence"] for chunk in chunks["chunks"]] == list(range(chunks["total"]))
+    assert all(chunk["char_count"] == len(chunk["text"]) for chunk in chunks["chunks"])
+    assert all(chunk["locator"]["doc_items"] for chunk in chunks["chunks"])
+    assert db.scalar(select(func.count()).select_from(ChunkEmbedding)) == chunks["total"]
+    document = db.get(Document, UUID(body["document"]["document_id"]))
+    assert document.ready_at is not None
+    assert document.document_metadata["chunker_name"] == "docling.HierarchicalChunker"
+    assert document.document_metadata["ingestion_duration_ms"] > 0
+    listing = client.get("/v1/sources").json()
+    assert listing["total"] == 1
+    assert listing["sources"][0]["display_name"] == "Research notes"
+    assert listing["sources"][0]["chunk_count"] == chunks["total"]
+    assert len(azure_api["calls"]) == 1
+
+
+def test_failed_upload_can_retry_and_ready_duplicate_is_rejected(
+    client,
+    db,
     monkeypatch,
-    tmp_path: Path,
-) -> None:
-    db = InMemorySession()
-    settings = Settings(artifact_store_path=tmp_path)
-    parsed = ParsedDocument(
-        normalized_text="Heading\n\nBody",
-        blocks=(
-            ParsedBlock(
-                text="Heading",
-                label="section_header",
-                locator={"page": 1, "char_start": 0, "char_end": 7},
-            ),
-            ParsedBlock(
-                text="Body",
-                label="text",
-                locator={"page": 1, "char_start": 9, "char_end": 13},
-            ),
-        ),
-        page_count=1,
-        parser_name="docling",
-        parser_version="test",
-    )
+    azure_api,
+    word_bytes,
+):
+    from app.api import sources
 
-    def fake_parse_document(path: Path) -> ParsedDocument:
-        assert path.read_bytes() == b"document"
-        return parsed
+    original_parser = sources.parse_document
 
-    chunks = (
-        ChunkDraft(
-            sequence=0,
-            text="Heading",
-            locator={"headings": ["Research"], "doc_items": []},
-        ),
-        ChunkDraft(
-            sequence=1,
-            text="Body",
-            locator={"headings": ["Research"], "doc_items": []},
-        ),
-    )
-
-    def fake_chunk_document(value: ParsedDocument) -> tuple[ChunkDraft, ...]:
-        assert value is parsed
-        return chunks
-
-    embeddings = (
-        EmbeddingResult(
-            vector=(0.1, 0.2, 0.3),
-            model="embedding-large",
-            deployment="embedding-large",
-            prompt_tokens=None,
-        ),
-        EmbeddingResult(
-            vector=(0.4, 0.5, 0.6),
-            model="embedding-large",
-            deployment="embedding-large",
-            prompt_tokens=None,
-        ),
-    )
-
-    def fake_embed_texts(
-        values: list[str],
-        value_settings: Settings,
-    ) -> tuple[EmbeddingResult, ...]:
-        assert values == ["Heading", "Body"]
-        assert value_settings is settings
-        return embeddings
-
-    monkeypatch.setattr(sources_api, "parse_document", fake_parse_document)
-    monkeypatch.setattr(sources_api, "chunk_document", fake_chunk_document)
-    monkeypatch.setattr(sources_api, "embed_texts", fake_embed_texts)
-    app.dependency_overrides[sources_api.get_db] = lambda: db
-    app.dependency_overrides[sources_api.get_settings] = lambda: settings
-
-    try:
-        client = TestClient(app)
-        response = client.post(
-            "/v1/sources/uploads",
-            files={"file": ("research.pdf", b"document", "application/pdf")},
-            data={"display_name": "Research source"},
-        )
-
-        assert response.status_code == 201
-        payload = response.json()
-        assert payload["status"] == "ready"
-        assert payload["document"]["status"] == "ready"
-        assert payload["document"]["block_count"] == 2
-        assert len(db.chunks) == 2
-        stored_chunks = sorted(db.chunks.values(), key=lambda chunk: chunk.sequence)
-        assert [chunk.text for chunk in stored_chunks] == ["Heading", "Body"]
-        assert stored_chunks[0].locator["headings"] == ["Research"]
-        assert len(db.embeddings) == 2
-        stored_embeddings = sorted(
-            db.embeddings.values(),
-            key=lambda embedding: embedding.chunk_id,
-        )
-        assert all(embedding.provider == "azure_openai" for embedding in stored_embeddings)
-        assert all(embedding.dimensions == 3 for embedding in stored_embeddings)
-
-        source_id = payload["source_id"]
-        detail = client.get(f"/v1/sources/{source_id}")
-
-        assert detail.status_code == 200
-        assert detail.json()["normalized_text"] == "Heading\n\nBody"
-        assert detail.json()["blocks"][0]["locator"]["page"] == 1
-        assert db.documents[next(iter(db.documents))].ready_at is not None
-    finally:
-        app.dependency_overrides.clear()
-
-
-def test_upload_source_retries_a_failed_source(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    db = InMemorySession()
-    settings = Settings(artifact_store_path=tmp_path)
-    failed_source = Source(
-        display_name="Research source",
-        original_filename="research.pdf",
-        kind="upload",
-        status="failed",
-        content_sha256="a" * 64,
-        error_code="DOCUMENT_PARSE_FAILED",
-        error_detail="previous parse failure",
-    )
-    failed_source.id = uuid.uuid4()
-    db.sources[failed_source.id] = failed_source
-    db.duplicate_source = failed_source
-
-    parsed = ParsedDocument(
-        normalized_text="Body",
-        blocks=(
-            ParsedBlock(
-                text="Body",
-                label="text",
-                locator={"char_start": 0, "char_end": 4},
-            ),
-        ),
-        page_count=1,
-        parser_name="docling",
-        parser_version="test",
-    )
-    chunk = ChunkDraft(sequence=0, text="Body", locator={"doc_items": []})
-    embedding = EmbeddingResult(
-        vector=(0.1, 0.2, 0.3),
-        model="embedding-large",
-        deployment="embedding-large",
-        prompt_tokens=None,
-    )
-
-    monkeypatch.setattr(sources_api, "parse_document", lambda path: parsed)
-    monkeypatch.setattr(sources_api, "chunk_document", lambda value: (chunk,))
-    monkeypatch.setattr(sources_api, "embed_texts", lambda values, value_settings: (embedding,))
-    app.dependency_overrides[sources_api.get_db] = lambda: db
-    app.dependency_overrides[sources_api.get_settings] = lambda: settings
-
-    try:
-        response = TestClient(app).post(
-            "/v1/sources/uploads",
-            files={"file": ("research.pdf", b"document", "application/pdf")},
-        )
-
-        assert response.status_code == 201
-        assert response.json()["source_id"] == str(failed_source.id)
-        assert response.json()["status"] == "ready"
-        assert len(db.sources) == 1
-        assert failed_source.status == "ready"
-        assert failed_source.error_code is None
-        assert failed_source.error_detail is None
-        assert failed_source.current_document_id is not None
-    finally:
-        app.dependency_overrides.clear()
-
-
-def test_upload_source_rejects_a_ready_duplicate(
-    tmp_path: Path,
-) -> None:
-    db = InMemorySession()
-    settings = Settings(artifact_store_path=tmp_path)
-    ready_source = Source(
-        display_name="Research source",
-        original_filename="research.pdf",
-        kind="upload",
-        status="ready",
-        content_sha256="a" * 64,
-    )
-    ready_source.id = uuid.uuid4()
-    db.sources[ready_source.id] = ready_source
-    db.duplicate_source = ready_source
-    app.dependency_overrides[sources_api.get_db] = lambda: db
-    app.dependency_overrides[sources_api.get_settings] = lambda: settings
-
-    try:
-        response = TestClient(app).post(
-            "/v1/sources/uploads",
-            files={"file": ("research.pdf", b"document", "application/pdf")},
-        )
-
-        assert response.status_code == 409
-        assert response.json()["error"]["code"] == "SOURCE_ALREADY_EXISTS"
-        assert len(db.documents) == 0
-    finally:
-        app.dependency_overrides.clear()
-
-
-def test_upload_source_records_a_chunking_failure(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    db = InMemorySession()
-    settings = Settings(artifact_store_path=tmp_path)
-    parsed = ParsedDocument(
-        normalized_text="Body",
-        blocks=(
-            ParsedBlock(
-                text="Body",
-                label="text",
-                locator={"char_start": 0, "char_end": 4},
-            ),
-        ),
-        page_count=1,
-        parser_name="docling",
-        parser_version="test",
-    )
-
-    monkeypatch.setattr(sources_api, "parse_document", lambda path: parsed)
-
-    def fail_chunking(value: ParsedDocument) -> tuple[ChunkDraft, ...]:
-        del value
-        raise sources_api.DocumentChunkingError("chunking failed")
-
-    monkeypatch.setattr(sources_api, "chunk_document", fail_chunking)
-    app.dependency_overrides[sources_api.get_db] = lambda: db
-    app.dependency_overrides[sources_api.get_settings] = lambda: settings
-
-    try:
-        response = TestClient(app).post(
-            "/v1/sources/uploads",
-            files={"file": ("research.pdf", b"document", "application/pdf")},
-        )
-
-        assert response.status_code == 422
-        assert response.json()["error"]["code"] == "DOCUMENT_CHUNKING_FAILED"
-        assert len(db.documents) == 0
-        source = next(iter(db.sources.values()))
-        assert source.status == "failed"
-        assert source.error_code == "DOCUMENT_CHUNKING_FAILED"
-    finally:
-        app.dependency_overrides.clear()
-
-
-def test_upload_source_records_an_embedding_failure(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    db = InMemorySession()
-    settings = Settings(artifact_store_path=tmp_path)
-    parsed = ParsedDocument(
-        normalized_text="Body",
-        blocks=(
-            ParsedBlock(
-                text="Body",
-                label="text",
-                locator={"char_start": 0, "char_end": 4},
-            ),
-        ),
-        page_count=1,
-        parser_name="docling",
-        parser_version="test",
-    )
-    chunk = ChunkDraft(sequence=0, text="Body", locator={"doc_items": []})
-
-    monkeypatch.setattr(sources_api, "parse_document", lambda path: parsed)
-    monkeypatch.setattr(sources_api, "chunk_document", lambda value: (chunk,))
-
-    def fail_embedding(values: list[str], value_settings: Settings) -> tuple[EmbeddingResult, ...]:
-        del values, value_settings
-        raise sources_api.AzureEmbeddingError("embedding failed")
-
-    monkeypatch.setattr(sources_api, "embed_texts", fail_embedding)
-    app.dependency_overrides[sources_api.get_db] = lambda: db
-    app.dependency_overrides[sources_api.get_settings] = lambda: settings
-
-    try:
-        response = TestClient(app).post(
-            "/v1/sources/uploads",
-            files={"file": ("research.pdf", b"document", "application/pdf")},
-        )
-
-        assert response.status_code == 422
-        assert response.json()["error"]["code"] == "DOCUMENT_EMBEDDING_FAILED"
-        assert len(db.documents) == 0
-        source = next(iter(db.sources.values()))
-        assert source.status == "failed"
-        assert source.error_code == "DOCUMENT_EMBEDDING_FAILED"
-    finally:
-        app.dependency_overrides.clear()
-
-
-def test_upload_source_records_a_parse_failure(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    db = InMemorySession()
-    settings = Settings(artifact_store_path=tmp_path)
-
-    def fake_parse_document(path: Path) -> ParsedDocument:
-        del path
+    def fail_parse(*args, **kwargs):
         raise DocumentHasNoText("The document contains no extractable text")
 
-    monkeypatch.setattr(sources_api, "parse_document", fake_parse_document)
-    app.dependency_overrides[sources_api.get_db] = lambda: db
-    app.dependency_overrides[sources_api.get_settings] = lambda: settings
+    monkeypatch.setattr(sources, "parse_document", fail_parse)
+    failure = client.post("/v1/sources/uploads", files={"file": ("research.docx", word_bytes)})
+    assert failure.status_code == 422
+    source = db.scalar(select(Source))
+    source_id = source.id
+    assert source.status == "failed"
+    assert source.error_code == "DOCUMENT_HAS_NO_TEXT"
+    assert db.scalar(select(func.count()).select_from(Document)) == 0
 
-    try:
-        response = TestClient(app).post(
-            "/v1/sources/uploads",
-            files={"file": ("scan.pdf", b"document", "application/pdf")},
-        )
+    monkeypatch.setattr(sources, "parse_document", original_parser)
+    retry = client.post("/v1/sources/uploads", files={"file": ("research.docx", word_bytes)})
+    assert retry.status_code == 201, retry.text
+    assert retry.json()["source_id"] == str(source_id)
+    db.refresh(source)
+    assert source.error_code is None
+    duplicate = client.post("/v1/sources/uploads", files={"file": ("research.docx", word_bytes)})
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error"]["code"] == "SOURCE_ALREADY_EXISTS"
+    assert db.scalar(select(func.count()).select_from(Source)) == 1
+    assert db.scalar(select(func.count()).select_from(Document)) == 1
+    assert len(azure_api["calls"]) == 1
 
-        assert response.status_code == 422
-        assert response.json()["error"]["code"] == "DOCUMENT_HAS_NO_TEXT"
-        assert len(db.sources) == 1
-        source = next(iter(db.sources.values()))
-        assert source.status == "failed"
-        assert source.error_code == "DOCUMENT_HAS_NO_TEXT"
-    finally:
-        app.dependency_overrides.clear()
+
+@pytest.mark.parametrize(
+    ("name", "content", "code", "http_status"),
+    [
+        ("empty.pdf", b"", "EMPTY_FILE", 422),
+        ("text.txt", b"text", "UNSUPPORTED_MEDIA_TYPE", 415),
+        ("large.pdf", b"01234567890", "FILE_TOO_LARGE", 413),
+    ],
+)
+def test_upload_rejects_input_before_database(settings, name, content, code, http_status):
+    settings.max_upload_bytes = 10
+    database = Mock(spec=Session)
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_db] = lambda: database
+    response = TestClient(app).post("/v1/sources/uploads", files={"file": (name, content)})
+    assert response.status_code == http_status
+    assert response.json()["error"]["code"] == code
+    assert database.mock_calls == []
+
+
+@pytest.mark.parametrize(
+    ("setting", "value", "code"),
+    [
+        ("max_document_chars", 10, "DOCUMENT_TOO_LARGE"),
+        ("max_document_chunks", 1, "TOO_MANY_CHUNKS"),
+        ("max_chunk_chars", 10, "CHUNK_TOO_LARGE"),
+    ],
+)
+def test_ingestion_limits_fail_before_embeddings(
+    client,
+    db,
+    settings,
+    azure_api,
+    word_bytes,
+    setting,
+    value,
+    code,
+):
+    setattr(settings, setting, value)
+    response = client.post("/v1/sources/uploads", files={"file": ("research.docx", word_bytes)})
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == code
+    assert azure_api["calls"] == []
+    assert db.scalar(select(Source)).status == "failed"
+    assert db.scalar(select(func.count()).select_from(DocumentChunk)) == 0
+
+
+def test_inspection_needs_no_provider_and_enforces_document_ownership(
+    client,
+    ready_source,
+    settings,
+    azure_api,
+):
+    source, _, _ = ready_source()
+    other, other_document, _ = ready_source()
+    settings.azure_openai_api_key = None
+    assert client.get("/v1/sources").status_code == 200
+    assert client.get(f"/v1/sources/{source.id}").status_code == 200
+    assert (
+        client.get(f"/v1/sources/{source.id}/chunks?limit=1&offset=1").json()["chunks"][0][
+            "sequence"
+        ]
+        == 1
+    )
+    assert (
+        client.get(f"/v1/sources/{source.id}/chunks?document_id={other_document.id}").status_code
+        == 404
+    )
+    assert client.get(f"/v1/sources/{uuid4()}").status_code == 404
+    assert client.get("/v1/sources?limit=101").status_code == 422
+    assert azure_api["calls"] == []
+
+
+def test_ingestion_budget_prevents_embedding_call(
+    client,
+    db,
+    word_bytes,
+    azure_api,
+    monkeypatch,
+):
+    from app.api import sources
+
+    monkeypatch.setattr(sources, "perf_counter", Mock(side_effect=[0.0, 181.0]))
+    response = client.post("/v1/sources/uploads", files={"file": ("research.docx", word_bytes)})
+    assert response.status_code == 504
+    assert response.json()["error"]["code"] == "INGESTION_TIMEOUT"
+    assert db.scalar(select(Source)).status == "failed"
+    assert azure_api["calls"] == []

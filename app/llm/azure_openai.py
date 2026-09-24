@@ -1,8 +1,18 @@
 from dataclasses import dataclass
+from typing import Generic, TypeVar
 
-from openai import AzureOpenAI
+from openai import (
+    APIError,
+    APITimeoutError,
+    AzureOpenAI,
+    ContentFilterFinishReasonError,
+    LengthFinishReasonError,
+)
+from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
+
+StructuredOutputT = TypeVar("StructuredOutputT", bound=BaseModel)
 
 
 class AzureLLMConfigurationError(ValueError):
@@ -13,21 +23,31 @@ class AzureLLMError(RuntimeError):
     """Raised when Azure OpenAI cannot return generated text."""
 
 
+class AzureLLMTimeoutError(AzureLLMError):
+    """The bounded model request timed out."""
+
+
+class AzureLLMOutputError(AzureLLMError):
+    """The model refused or returned an incomplete or invalid response."""
+
+
 @dataclass(frozen=True)
-class TextGenerationResult:
-    text: str
+class StructuredGenerationResult(Generic[StructuredOutputT]):
+    parsed: StructuredOutputT
     model: str
     prompt_tokens: int | None
     completion_tokens: int | None
 
 
-def generate_text(
+def generate_structured(
     prompt: str,
+    response_model: type[StructuredOutputT],
     settings: Settings,
     *,
     instructions: str | None = None,
-) -> TextGenerationResult:
-    """Generate text using the configured Azure OpenAI chat deployment."""
+    timeout_seconds: float | None = None,
+) -> StructuredGenerationResult[StructuredOutputT]:
+    """Generate a Pydantic-validated response using Azure OpenAI."""
 
     if not prompt.strip():
         raise ValueError("Cannot generate text from an empty prompt")
@@ -46,29 +66,37 @@ def generate_text(
     messages.append({"role": "user", "content": prompt})
 
     try:
-        client = AzureOpenAI(
+        with AzureOpenAI(
             api_key=api_key,
             azure_endpoint=endpoint,
             api_version=api_version,
-        )
-        response = client.chat.completions.create(
-            model=deployment,
-            messages=messages,
-        )
-    except Exception as exc:
-        raise AzureLLMError("Azure OpenAI text-generation request failed") from exc
+            timeout=timeout_seconds or settings.provider_timeout_seconds,
+            max_retries=0,
+        ) as client:
+            response = client.chat.completions.parse(
+                model=deployment,
+                messages=messages,
+                response_format=response_model,
+                max_completion_tokens=settings.max_answer_tokens,
+            )
+    except APITimeoutError as exc:
+        raise AzureLLMTimeoutError("Azure OpenAI answer request timed out") from exc
+    except (ValidationError, LengthFinishReasonError, ContentFilterFinishReasonError) as exc:
+        raise AzureLLMOutputError("Azure OpenAI returned an invalid or incomplete answer") from exc
+    except APIError as exc:
+        raise AzureLLMError("Azure OpenAI structured-generation request failed") from exc
 
     choices = list(getattr(response, "choices", ()))
     if not choices:
-        raise AzureLLMError("Azure OpenAI returned no text-generation choices")
+        raise AzureLLMOutputError("Azure OpenAI returned no structured-generation choices")
 
-    text = getattr(choices[0].message, "content", None)
-    if not isinstance(text, str) or not text.strip():
-        raise AzureLLMError("Azure OpenAI returned empty generated text")
+    parsed = getattr(choices[0].message, "parsed", None)
+    if parsed is None:
+        raise AzureLLMOutputError("Azure OpenAI refused or returned no structured output")
 
     usage = getattr(response, "usage", None)
-    return TextGenerationResult(
-        text=text,
+    return StructuredGenerationResult(
+        parsed=parsed,
         model=str(getattr(response, "model", deployment)),
         prompt_tokens=getattr(usage, "prompt_tokens", None),
         completion_tokens=getattr(usage, "completion_tokens", None),

@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: nexus
       POSTGRES_PASSWORD: nexus
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,9 +24,16 @@ services:
       NEXUS_DATABASE_URL: postgresql+psycopg://nexus:nexus@postgres:5432/nexus
       NEXUS_ARTIFACT_STORE_PATH: /app/.data/artifacts
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - artifact_data:/app/.data/artifacts
+      - docling_model_cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,3 +41,4 @@ services:
 volumes:
   postgres_data:
   artifact_data:
+  docling_model_cache:

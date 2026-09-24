@@ -1,22 +1,22 @@
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db.session import get_db
-from app.embeddings.azure_openai import AzureEmbeddingConfigurationError, AzureEmbeddingError
-from app.retrieval.vector_search import RetrievedChunk, retrieve_question
+from app.retrieval.service import retrieve_and_save
+from app.retrieval.vector_search import RetrievedChunk
 
 router = APIRouter(tags=["retrieval"])
 
 
 class RetrievalRequest(BaseModel):
-    question: str
-    source_ids: list[UUID]
+    question: str = Field(min_length=1)
+    source_ids: list[UUID] = Field(min_length=1, max_length=1)
     top_k: int = Field(default=5, ge=1)
 
 
@@ -31,6 +31,9 @@ class RetrievalChunkResponse(BaseModel):
 
 
 class RetrievalResponse(BaseModel):
+    query_id: UUID
+    document_id: UUID
+    retrieval: dict
     chunks: list[RetrievalChunkResponse]
 
 
@@ -55,36 +58,14 @@ def retrieve(
     request: RetrievalRequest,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
-) -> RetrievalResponse | JSONResponse:
-    try:
-        chunks = retrieve_question(
-            db,
-            request.question,
-            request.source_ids,
-            settings,
-            top_k=request.top_k,
-        )
-    except (AzureEmbeddingConfigurationError, AzureEmbeddingError) as exc:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            content={
-                "error": {
-                    "code": "RETRIEVAL_EMBEDDING_FAILED",
-                    "message": str(exc),
-                    "retryable": False,
-                }
-            },
-        )
-    except ValueError as exc:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            content={
-                "error": {
-                    "code": "INVALID_RETRIEVAL_REQUEST",
-                    "message": str(exc),
-                    "retryable": False,
-                }
-            },
-        )
-
-    return RetrievalResponse(chunks=[_chunk_response(chunk) for chunk in chunks])
+) -> RetrievalResponse:
+    run = retrieve_and_save(db, request.question, request.source_ids, settings, top_k=request.top_k)
+    run.query.status = "completed"
+    run.query.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    return RetrievalResponse(
+        query_id=run.query.id,
+        document_id=run.query.document_id,
+        retrieval=run.query.retrieval_config,
+        chunks=[_chunk_response(chunk) for chunk in run.chunks],
+    )
