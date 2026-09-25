@@ -2,35 +2,42 @@
 
 Research often starts with a question and ends up scattered across documents, browser tabs, and disconnected conversations. The difficult part is keeping the context together: what was learned, which sources support it, and what still needs an answer.
 
-Nexus Research Engine is an evidence-first research platform designed to bring that work into one place. It connects questions, source material, and findings in dedicated research workspaces, with the goal of building understanding that can be inspected, revisited, and extended.
+Nexus Research Engine is an evidence-first research platform that turns selected documents and approved web pages into cited answers, comparisons, and reports. Each investigation has its own workspace, keeping its question, sources, research runs, and findings together so you can inspect the evidence and return to the work later.
 
 Research as a connected story, not a collection of answers.
 
 ![Nexus landing page with its dark theme, research introduction, and a preview connecting documents to evidence and a grounded answer](docs/images/nexus-landing-hero.png)
 
-## The idea
+## From a question to a report
 
-Each research has its own space for questions, sources, and findings. A library of researches provides a way to explore a new topic or return to an existing investigation without mixing their context.
-
-For a question such as:
+Suppose you want to answer:
 
 > Should we adopt Technology X for our existing system?
 
-Nexus aims to help researchers:
+You can bring in architecture documents, evaluation reports, and specific public web pages, then investigate the question within that selected material:
 
-- Bring together private documents and trusted external sources.
-- Find relevant passages and connect claims to supporting evidence.
-- Compare options and surface contradictions, uncertainty, and missing information.
-- Build an answer or report with citations that can be followed back to their sources.
+1. **Create a research workspace.** Give the investigation a name, save a draft question, and keep its sources and results separate from other topics.
+2. **Choose your sources.** Upload text-extractable PDF or DOCX files, attach existing documents, or explicitly approve public HTTPS pages for the run.
+3. **Run the research.** Choose a focused answer, comparison, synthesis, evidence search, or an agentic investigation. Follow the actual tasks and progress, or cancel the run.
+4. **Inspect the findings.** Open citations to their exact saved passages, review which sources contributed, and examine reported gaps and possible contradictions.
+5. **Keep and reuse the result.** Reopen saved reports, export Markdown or JSON, and record your own quality ratings and notes.
 
-The long-term vision is a research assistant that can take a complex question, plan the investigation, gather evidence, validate its findings, and produce a trustworthy synthesis.
+Document processing and research run in the background. Closing the browser does not stop accepted work while the local backend and worker remain running.
 
-## Guiding principles
+## Ways to research
 
-- Answers should be grounded in source evidence.
-- Citations should be understandable and verifiable by a person.
-- Gaps, contradictions, and uncertainty should be visible.
-- Research should remain controlled and inspectable as it becomes more capable.
-- Existing open-source tools and provider capabilities should be reused wherever appropriate.
+| Mode                     | What it does                                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Grounded Answer          | Answers a question from one selected source, with citations.                                                          |
+| Compare Sources          | Compares two or more sources, preserving attribution and highlighting possible disagreements.                         |
+| Multi-Document Synthesis | Brings complementary findings from multiple sources into one structured result.                                       |
+| Evidence Only            | Returns relevant passages and source locations without generating an answer.                                          |
+| Agentic Research         | Plans one to three focused retrieval questions, gathers evidence, and synthesizes a cited result within fixed limits. |
 
-[Run Nexus locally](docs/mvp3.md) · [UI guide](NexusUI/README.md)
+Agentic research is bounded: the system validates the plan before running it, and the model cannot add arbitrary tools or expand the approved source scope.
+
+## Evidence you can inspect
+
+Nexus keeps the material behind a result accessible through its source inspector, evidence explorer, and source–evidence–claim graph. Saved citations refer to the document snapshot used for that run, so an older finding remains traceable.
+
+Results include source coverage, reported gaps, and candidate contradictions. Citation checks verify references and saved passages; they do not guarantee that a model's interpretation is correct. The evaluation screen separates execution statistics from your own assessments of relevance, grounding, and citation quality.
