@@ -3,10 +3,15 @@
 import json
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from types import SimpleNamespace
+from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from kombu.exceptions import OperationalError
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy import func, select, text
 
 from app.db.job_models import (
@@ -64,7 +69,7 @@ def test_acceptance_pins_sources_and_queues_atomically(client, db, submitted_job
     job_id, payload = submitted_job(idempotency_key="request-1")
     job = db.get(ResearchJob, job_id)
     queued = db.execute(
-        text("SELECT task_name, args FROM procrastinate_jobs WHERE id=:id"),
+        text("SELECT task_name, args FROM queue_deliveries WHERE id=:id"),
         {"id": job.queue_job_id},
     ).one()
     assert queued.task_name == "nexus.plan"
@@ -98,6 +103,46 @@ def test_project_sources_are_explicitly_scoped(client, ready_source):
         ).status_code
         == 403
     )
+
+
+@pytest.mark.parametrize(
+    "outcome,with_gap,status",
+    [
+        ("completed", False, "completed"),
+        ("completed", True, "completed_with_gaps"),
+        ("insufficient_context", True, "completed_with_gaps"),
+    ],
+)
+def test_result_outcome_is_exposed_across_job_and_workspace_views(
+    client, db, settings, submitted_job, research_azure, outcome, with_gap, status
+):
+    answer = research_azure["answer"]
+    answer["status"] = outcome
+    if with_gap:
+        answer["gaps"] = [
+            {"text": "Deployment status is not established.", "reason": "no_evidence"}
+        ]
+    if outcome == "insufficient_context":
+        answer["limitation"] = "The evidence does not establish the requested deployment status."
+    job_id, payload = submitted_job()
+    project_id = payload["workspace_id"]
+    assert client.get(f"/v1/research/jobs/{job_id}").json()["outcome"] is None
+    assert client.get(f"/v1/projects/{project_id}").json()["runs"][0]["outcome"] is None
+
+    plan_job(db, job_id, settings)
+    finish_ready_tasks(db, job_id, settings)
+
+    responses = [
+        client.get(f"/v1/research/jobs/{job_id}").json(),
+        client.get(f"/v1/research/jobs/{job_id}/result").json(),
+        client.get("/v1/research/jobs", params={"workspace_id": project_id}).json()["jobs"][0],
+        client.get(f"/v1/projects/{project_id}").json()["runs"][0],
+        client.get("/v1/projects").json()["projects"][0]["runs"][0],
+        client.get(f"/v1/projects/{project_id}/evaluation").json()["runs"][0],
+    ]
+    for response in responses:
+        assert response["status"] == status
+        assert response["outcome"] == outcome
 
 
 def test_comparison_end_to_end_saved_result_and_duplicate_delivery(
@@ -157,6 +202,31 @@ def test_evidence_only_does_not_generate_answer(client, db, settings, submitted_
     assert len(body["evidence"]) == 2 and body["claims"] == []
     assert "candidate" in body["summary"]
     assert all(path.endswith("/embeddings") for path, _ in azure_api["calls"])
+
+
+def test_hybrid_rank_survives_evidence_join_and_saved_run_api(
+    client, db, settings, ready_source, azure_api,
+):
+    source, _, chunks = ready_source(("A general system overview.", "ZXQ741 requires consent."))
+    project = client.post("/v1/projects", json={"title": "Hybrid ranking check"}).json()
+    client.post(f"/v1/projects/{project['id']}/sources/{source.id}").raise_for_status()
+    response = client.post("/v1/research/jobs", json={
+        "workspace_id": project["id"], "question": "ZXQ741", "mode": "evidence",
+        "source_ids": [str(source.id)], "top_k_per_source": 1,
+    })
+    assert response.status_code == 202
+    job_id = UUID(response.json()["job_id"])
+    plan_job(db, job_id, settings)
+    finish_ready_tasks(db, job_id, settings)
+    result = client.get(f"/v1/research/jobs/{job_id}/result").json()
+    assert result["evidence"][0]["chunk_id"] == str(chunks[1].id)
+    run_id = db.get(ResearchJob, job_id).run_id
+    saved = client.get(f"/v1/research/runs/{run_id}").json()
+    assert saved["retrieval"]["strategy"] == "hybrid"
+    assert saved["retrieval"]["metric"] == "rrf"
+    ranking = saved["retrieval_results"][0]["ranking"]
+    assert ranking["fusion_score"] > 0 and ranking["lexical_score"] > 0
+    assert ranking["cosine_distance"] == saved["retrieval_results"][0]["cosine_distance"]
 
 
 def test_cancel_before_planning_never_calls_provider(
@@ -445,6 +515,18 @@ def test_settings_do_not_expose_credentials(client):
     assert response.status_code == 200
     assert response.json()["deployment"] == "local"
     assert "test-key" not in response.text
+
+
+@pytest.mark.parametrize("failure", [OperationalError, RedisConnectionError, RedisTimeoutError])
+def test_worker_status_handles_broker_transport_failures(client, monkeypatch, failure):
+    from app.api.system import celery_app
+
+    inspector = SimpleNamespace(ping=Mock(side_effect=failure("private broker details")))
+    monkeypatch.setattr(celery_app.control, "inspect", Mock(return_value=inspector))
+    response = client.get("/v1/system")
+    assert response.status_code == 200
+    assert response.json()["worker_count"] == 0
+    assert "private broker details" not in response.text
 
 
 def test_agentic_planner_sdk_to_validated_result(

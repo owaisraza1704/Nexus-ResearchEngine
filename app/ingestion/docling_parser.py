@@ -1,11 +1,16 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from time import monotonic
 from typing import Any
+
+from app.ingestion.legacy_word import LegacyWordConversionError, convert_legacy_word
 
 SUPPORTED_MIME_TYPES = {
     ".pdf": "application/pdf",
+    ".doc": "application/msword",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
@@ -38,6 +43,7 @@ class ParsedDocument:
     parser_version: str
     # Kept in memory so native Docling features can reuse the same conversion.
     native_document: Any | None = field(default=None, repr=False, compare=False)
+    conversion_metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def normalized_text_sha256(self) -> str:
@@ -58,20 +64,44 @@ def parse_document(
 
     mime_type_for_path(path)
 
+    started = monotonic()
+    conversion_metadata = {}
     try:
         from docling.datamodel.base_models import ConversionStatus
 
-        conversion = _document_converter(timeout_seconds).convert(path, max_num_pages=max_pages)
-        if conversion.status != ConversionStatus.SUCCESS:
-            raise DocumentParseError("Docling did not finish the entire document")
-        document = conversion.document
+        with TemporaryDirectory(prefix="nexus-doc-") as directory:
+            input_path = path
+            if path.suffix.lower() == ".doc":
+                input_path, converter_version = convert_legacy_word(
+                    path, Path(directory), timeout_seconds
+                )
+                conversion_metadata = {
+                    "converter": "libreoffice",
+                    "converter_version": converter_version,
+                    "input_format": "doc",
+                    "parsed_format": "docx",
+                    "locator_basis": "converted_docx_blocks",
+                }
+            remaining = timeout_seconds - (monotonic() - started)
+            if remaining <= 0:
+                raise DocumentParseError("The document conversion exhausted the parse time limit.")
+            conversion = _document_converter(remaining).convert(
+                input_path, max_num_pages=max_pages
+            )
+            if conversion.status != ConversionStatus.SUCCESS:
+                raise DocumentParseError("Docling did not finish the entire document")
+            parsed = normalize_document(conversion.document)
+    except (DocumentHasNoText, DocumentParseError):
+        raise
+    except LegacyWordConversionError as exc:
+        raise DocumentParseError(str(exc)) from exc
     except Exception as exc:
         raise DocumentParseError(
             f"Docling could not fully parse {path.name}. "
-            f"Use a valid text PDF (at most {max_pages} pages) or DOCX within the parse time limit."
+            f"Use a valid text PDF (at most {max_pages} pages), DOC or DOCX within the time limit."
         ) from exc
 
-    return normalize_document(document)
+    return replace(parsed, conversion_metadata=conversion_metadata)
 
 
 def normalize_document(document: Any) -> ParsedDocument:

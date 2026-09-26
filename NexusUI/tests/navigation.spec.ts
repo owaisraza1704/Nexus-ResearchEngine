@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { Research, Result } from '../src/data/research';
 
 const api = '/api/backend';
@@ -33,11 +34,14 @@ test('workspace creation, draft persistence, library search, and empty screens u
     .fill('How should we check citation quality?');
   await page.getByRole('button', { name: 'Evidence Only', exact: true }).click();
   await page.getByLabel('Passages / source').selectOption('8');
+  await expect(page.getByLabel('Retrieval', { exact: true })).toHaveValue('hybrid');
+  await page.getByLabel('Retrieval', { exact: true }).selectOption('vector');
   await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(
     page.getByText('Draft saved to your local database.', { exact: true }),
   ).toBeVisible();
   await page.reload();
+  await expect(page.getByLabel('Retrieval', { exact: true })).toHaveValue('vector');
   await expect(page.getByLabel('Research question', { exact: true })).toHaveValue(
     'How should we check citation quality?',
   );
@@ -67,7 +71,7 @@ test('workspace creation, draft persistence, library search, and empty screens u
   }
   await page.getByLabel('Name', { exact: true }).fill(name + ' renamed');
   await page.getByRole('button', { name: 'Save workspace', exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText('Workspace saved.');
+  await expect(page.getByRole('status').filter({ hasText: 'Workspace saved.' })).toBeVisible();
   await page.reload();
   await expect(page.locator('.workspace-title')).toHaveText(name + ' renamed');
 });
@@ -128,7 +132,9 @@ test('real upload → agentic run → browser close → citations → reports �
   const base = '/research/' + projectId;
   await page.getByRole('link', { name: 'Sources', exact: true }).click();
   const documents: { name: string; base64: string }[] = JSON.parse(
-    execFileSync('../.venv/bin/python', ['../scripts/smoke_documents.py'], { encoding: 'utf8' }),
+    execFileSync('../.venv/bin/python', ['../scripts/smoke_documents.py'], {
+      encoding: 'utf8',
+    }),
   );
   await page.getByLabel('Upload documents').setInputFiles(
     documents.map((file) => ({
@@ -139,8 +145,14 @@ test('real upload → agentic run → browser close → citations → reports �
       buffer: Buffer.from(file.base64, 'base64'),
     })),
   );
-  const alpha = page.getByRole('checkbox', { name: 'Select alpha-verification.pdf', exact: true });
-  const beta = page.getByRole('checkbox', { name: 'Select beta-verification.docx', exact: true });
+  const alpha = page.getByRole('checkbox', {
+    name: 'Select alpha-verification.pdf',
+    exact: true,
+  });
+  const beta = page.getByRole('checkbox', {
+    name: 'Select beta-verification.docx',
+    exact: true,
+  });
   await expect(alpha).toBeEnabled({ timeout: 90000 });
   await expect(beta).toBeEnabled({ timeout: 90000 });
   await alpha.check();
@@ -161,6 +173,7 @@ test('real upload → agentic run → browser close → citations → reports �
   await page.getByRole('button', { name: 'Run Research', exact: true }).click();
   const job = await (await submission).json();
   expect(job.status).toBe('created');
+  expect(job.retrieval_strategy).toBe('hybrid');
   await expect(page).toHaveURL(base + '/runs/' + job.job_id);
   await page.close();
   await expect
@@ -196,7 +209,10 @@ test('real upload → agentic run → browser close → citations → reports �
   await reopened.locator('.workspace-scroll').evaluate((element) => {
     element.scrollTop = 0;
   });
-  await reopened.screenshot({ path: 'test-results/mvp3-execution.png', fullPage: true });
+  await reopened.screenshot({
+    path: 'test-results/mvp3-execution.png',
+    fullPage: true,
+  });
   await reopened.getByRole('link', { name: 'Reports', exact: true }).click();
   await expect(reopened.getByRole('heading', { name: 'Research reports' })).toBeVisible();
   const download = reopened.waitForEvent('download');
@@ -224,14 +240,85 @@ test('real upload → agentic run → browser close → citations → reports �
   await expect(
     reopened.getByRole('heading', { name: 'Research findings', exact: true }),
   ).toBeVisible();
-  await reopened.screenshot({ path: 'test-results/mvp3-result.png', fullPage: true });
+  await reopened.screenshot({
+    path: 'test-results/mvp3-result.png',
+    fullPage: true,
+  });
   await reopened.setViewportSize({ width: 390, height: 844 });
   await expect(reopened.locator('.research-sidebar')).toHaveCSS('width', '56px');
-  await reopened.screenshot({ path: 'test-results/mvp3-mobile-result.png', fullPage: true });
+  await reopened.screenshot({
+    path: 'test-results/mvp3-mobile-result.png',
+    fullPage: true,
+  });
   expect(await reopened.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     390,
   );
   expect(errors).toEqual([]);
+});
+
+test('legacy DOC upload, original download, and grounded answer work in the browser', async ({
+  page,
+  request,
+}) => {
+  test.skip(!process.env.NEXUS_LIVE_E2E, 'Requires the Docker converter, Celery and real Azure.');
+  test.setTimeout(180000);
+  const document: { name: string; base64: string } = JSON.parse(
+    execFileSync(
+      'docker',
+      ['compose', '-f', '../docker-compose.yml', 'exec', '-T', 'api', 'python'],
+      {
+        input: readFileSync('../scripts/legacy_doc_fixture.py'),
+        encoding: 'utf8',
+      },
+    ),
+  );
+  const project: Research = await (
+    await request.post(api + '/v1/projects', {
+      data: { title: 'Legacy DOC browser check ' + randomUUID().slice(0, 6) },
+    })
+  ).json();
+  const base = '/research/' + project.id;
+  await page.goto(base + '/sources');
+  await page.getByLabel('Upload documents').setInputFiles({
+    name: document.name,
+    mimeType: 'application/msword',
+    buffer: Buffer.from(document.base64, 'base64'),
+  });
+  const selected = page.getByRole('checkbox', {
+    name: 'Select ' + document.name,
+    exact: true,
+  });
+  await expect(selected).toBeEnabled({ timeout: 90000 });
+  await selected.check();
+  await expect(selected).toBeChecked();
+  await expect(selected).toBeEnabled();
+  const saved: Research = await (await request.get(api + '/v1/projects/' + project.id)).json();
+  const source = saved.sources[0];
+  expect(source.type).toBe('DOC');
+  const original = await request.get(api + `/v1/projects/${project.id}/sources/${source.id}/file`);
+  expect(original.headers()['content-type']).toContain('application/msword');
+  expect(await original.body()).toEqual(Buffer.from(document.base64, 'base64'));
+  await page.getByRole('link', { name: 'Research with selected sources' }).click();
+  await page.getByRole('button', { name: 'Grounded Answer', exact: true }).click();
+  await page
+    .getByLabel('Research question', { exact: true })
+    .fill('How long does Gamma retain records?');
+  const submission = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/v1/research/jobs') && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Run Research', exact: true }).click();
+  const job = await (await submission).json();
+  await expect
+    .poll(
+      async () =>
+        (await (await request.get(api + '/v1/research/jobs/' + job.job_id)).json()).status,
+      { timeout: 100000, intervals: [1000, 2000] },
+    )
+    .toMatch(/^completed/);
+  await expect(page.locator('.result-content')).toContainText('60');
+  await page.getByRole('button', { name: '[E1]', exact: true }).first().click();
+  await expect(page.locator('.citation-inspector')).toContainText('gamma-verification.doc');
 });
 
 test('approved web research requires fresh consent and preserves visible provenance', async ({
@@ -284,6 +371,8 @@ test('approved web research requires fresh consent and preserves visible provena
     await request.get(api + '/v1/research/jobs/' + job.job_id + '/result')
   ).json();
   expect(result.external_sources[0].url).toBe('https://example.com/');
-  expect(result.evidence[0].locator).toMatchObject({ url: 'https://example.com/' });
+  expect(result.evidence[0].locator).toMatchObject({
+    url: 'https://example.com/',
+  });
   await expect(page.getByText(result.external_sources[0].url, { exact: true })).toBeVisible();
 });

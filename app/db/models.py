@@ -5,16 +5,18 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Computed,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -103,6 +105,7 @@ class DocumentChunk(Base):
 
     __tablename__ = "document_chunks"
     __table_args__ = (
+        Index("ix_document_chunks_search_vector", "search_vector", postgresql_using="gin"),
         UniqueConstraint(
             "document_id",
             "sequence",
@@ -119,6 +122,9 @@ class DocumentChunk(Base):
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+    search_vector: Mapped[str] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', text)", persisted=True)
+    )
     text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     locator: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(

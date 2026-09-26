@@ -188,6 +188,7 @@
   background: #182b43;
 }
 .state-badge.state-completed_with_gaps,
+.state-badge.state-insufficient_context,
 .state-badge.state-retry_wait,
 .state-badge.state-partially_supported,
 .state-badge.state-context_limited {

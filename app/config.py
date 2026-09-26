@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     max_research_output_tokens: int = Field(default=6_000, ge=1)
     research_timeout_seconds: float = Field(default=120.0, gt=0)
     worker_concurrency: int = Field(default=2, ge=1, le=8)
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_queue: str = "nexus"
     max_job_tasks: int = Field(default=12, ge=4, le=30)
     max_job_depth: int = Field(default=6, ge=3, le=10)
     max_job_parallel_tasks: int = Field(default=2, ge=1, le=8)

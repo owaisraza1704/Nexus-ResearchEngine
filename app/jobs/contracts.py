@@ -42,6 +42,7 @@ class JobRequest(BaseModel):
     source_ids: list[UUID] = Field(default_factory=list, max_length=10)
     mode: JobMode = "agentic"
     top_k_per_source: int = Field(default=4, ge=1, le=20)
+    retrieval_strategy: Literal["vector", "hybrid"] = "hybrid"
     policy: SourcePolicy = Field(default_factory=SourcePolicy)
     budget: BudgetOptions = Field(default_factory=BudgetOptions)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=200)

@@ -15,6 +15,19 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build: .
     env_file:
@@ -23,6 +36,7 @@ services:
       NEXUS_ENVIRONMENT: development
       NEXUS_DATABASE_URL: postgresql+psycopg://nexus:nexus@postgres:5432/nexus
       NEXUS_ARTIFACT_STORE_PATH: /app/.data/artifacts
+      NEXUS_CELERY_BROKER_URL: redis://redis:6379/0
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -40,19 +54,36 @@ services:
 
   worker:
     build: .
-    command: ["procrastinate", "--app", "app.worker.worker", "worker"]
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=INFO"]
     env_file:
       - .env
     environment:
       NEXUS_ENVIRONMENT: development
       NEXUS_DATABASE_URL: postgresql+psycopg://nexus:nexus@postgres:5432/nexus
       NEXUS_ARTIFACT_STORE_PATH: /app/.data/artifacts
+      NEXUS_CELERY_BROKER_URL: redis://redis:6379/0
     volumes:
       - artifact_data:/app/.data/artifacts
       - docling_model_cache:/root/.cache/huggingface
     stop_grace_period: 20s
     depends_on:
       api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    build: .
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/nexus-celerybeat"]
+    env_file:
+      - .env
+    environment:
+      NEXUS_DATABASE_URL: postgresql+psycopg://nexus:nexus@postgres:5432/nexus
+      NEXUS_CELERY_BROKER_URL: redis://redis:6379/0
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   ui:
@@ -69,6 +100,7 @@ services:
         condition: service_healthy
 
 volumes:
+  redis_data:
   postgres_data:
   artifact_data:
   docling_model_cache:

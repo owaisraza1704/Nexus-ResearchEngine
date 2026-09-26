@@ -18,6 +18,8 @@ from uuid import uuid4
 
 import pytest
 from alembic.config import Config
+from celery import Celery
+from redis import Redis
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
@@ -25,6 +27,7 @@ from alembic import command
 from app.db.job_models import (
     JobBudget,
     JobEvent,
+    QueueDelivery,
     ResearchJob,
     ResearchTask,
     TaskAttempt,
@@ -33,7 +36,7 @@ from app.db.job_models import (
 from app.db.models import ChunkEmbedding, Document, DocumentChunk, Source, Workspace
 from app.db.research_models import EvidenceItem, ResearchResult, ResultCitation
 from app.jobs.contracts import JobRequest
-from app.jobs.queue import enqueue
+from app.jobs.queue import enqueue, publish_pending
 from app.jobs.service import create_job, job_progress
 
 
@@ -64,6 +67,15 @@ def worker_database():
 
 def test_worker_crash_recovery_and_duplicate_delivery(worker_database, settings):
     engine = worker_database
+    broker = os.getenv("NEXUS_TEST_CELERY_BROKER_URL")
+    if not broker:
+        pytest.skip("Set NEXUS_TEST_CELERY_BROKER_URL for the real Celery worker test")
+    queue = "nexus_test_" + uuid4().hex
+    sender = Celery("isolated-test", broker=broker)
+    sender.conf.update(
+        task_default_queue=queue,
+        broker_transport_options={"global_keyprefix": queue + ":"},
+    )
     called, release = threading.Event(), threading.Event()
     calls = []
 
@@ -110,15 +122,23 @@ def test_worker_crash_recovery_and_duplicate_delivery(worker_database, settings)
         "NEXUS_AZURE_OPENAI_EMBEDDING_DEPLOYMENT": settings.azure_openai_embedding_deployment,
         "NEXUS_AZURE_OPENAI_MODEL": "test-chat",
         "NEXUS_WORKER_CONCURRENCY": "1",
+        "NEXUS_CELERY_BROKER_URL": broker,
+        "NEXUS_CELERY_QUEUE": queue,
+        "NUMBA_NUM_THREADS": "1",
     }
 
     def start_worker():
         process = subprocess.Popen(
             [
-                str(Path(sys.executable).with_name("procrastinate")),
-                "--app",
-                "app.worker.worker",
+                str(Path(sys.executable).with_name("celery")),
+                "-A",
+                "app.worker:celery_app",
                 "worker",
+                "--pool=solo",
+                "--concurrency=1",
+                "--loglevel=INFO",
+                "--without-gossip",
+                "--without-mingle",
             ],
             env=environment,
             stdout=logs,
@@ -194,28 +214,21 @@ def test_worker_crash_recovery_and_duplicate_delivery(worker_database, settings)
                 settings,
             )
             job_id, run_id = job.id, job.run_id
+            assert publish_pending(db, app=sender) == 1
         first = start_worker()
         assert called.wait(25), "The real worker did not reach the local provider"
         first.kill()
         first.wait(timeout=10)
         release.set()
         with Session(engine) as db:
-            native_worker = db.scalar(
-                text(
-                    "SELECT worker_id FROM procrastinate_jobs "
-                    "WHERE status='doing' AND task_name='nexus.execute'"
-                )
-            )
-            assert native_worker is not None
             db.execute(
                 text(
-                    "UPDATE procrastinate_workers SET last_heartbeat=now()-interval '2 minutes' "
-                    "WHERE id=:id"
+                    "UPDATE queue_deliveries SET published_at=now()-interval '2 minutes' "
+                    "WHERE task_name='nexus.execute' AND finished_at IS NULL"
                 ),
-                {"id": native_worker},
             )
-            enqueue(db, "nexus.recover", lock="recovery-test-" + str(job_id), timestamp=0)
             db.commit()
+            assert publish_pending(db, app=sender) == 1
         start_worker()
         wait_until(lambda db: db.get(ResearchJob, job_id).status == "completed")
         with Session(engine) as db:
@@ -234,14 +247,8 @@ def test_worker_crash_recovery_and_duplicate_delivery(worker_database, settings)
                 db, "nexus.execute", lock=f"task:{retrieval.id}", task_id=str(retrieval.id)
             )
             db.commit()
-        wait_until(
-            lambda db: (
-                db.scalar(
-                    text("SELECT status FROM procrastinate_jobs WHERE id=:id"), {"id": duplicate_id}
-                )
-                == "succeeded"
-            )
-        )
+            assert publish_pending(db, app=sender) == 1
+        wait_until(lambda db: db.get(QueueDelivery, duplicate_id).finished_at is not None)
         with Session(engine) as db:
             assert len(calls) == 2
             assert (
@@ -288,3 +295,9 @@ def test_worker_crash_recovery_and_duplicate_delivery(worker_database, settings)
         server.server_close()
         logs.close()
         engine.dispose()
+        sender.close()
+        # Only this test's unique broker namespace; never flush the shared Redis database.
+        with Redis.from_url(broker) as redis:
+            keys = list(redis.scan_iter(match=queue + ":*"))
+            if keys:
+                redis.delete(*keys)

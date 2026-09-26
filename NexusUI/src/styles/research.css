@@ -641,6 +641,7 @@ button:focus-visible {
 }
 .composer-submit {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }

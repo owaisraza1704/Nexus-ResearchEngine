@@ -1,0 +1,1223 @@
+{
+  "recorded_at": "2026-09-26T03:56:41.205063+00:00",
+  "question": "Produce a comprehensive cited comparison of Alpha and Beta. Investigate their record retention periods and request execution approaches as separate aspects; summarize agreements, differences, and what the sources do not tell us.",
+  "method": "One warm-up per variant, then alternating sequential/parallel pairs. Only max_parallel_tasks changes. Ingestion is excluded; planning, queueing, retrieval, generation and validation are included. No application prompt cache.",
+  "warmups": [
+    {
+      "job_id": "306aebc5-6dff-4205-87d8-6354e870f1ec",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 1,
+      "backend_ms": 16406,
+      "client_elapsed_ms": 17388,
+      "plan_hash": "193ac24bce14738ab1747e3dcef8e903d6305595a94527afedf5c29345d5a207",
+      "plan": [
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's record retention periods and related retention rules, including agreements, differences, supporting citations, and information the approved sources do not specify.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's request execution approaches, including procedures, timing, conditions, agreements, differences, supporting citations, and information the approved sources do not specify.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retrieve_retention",
+            "retrieve_execution"
+          ]
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "extract_evidence"
+          ]
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesize"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": false,
+      "tasks": [
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:56:54.167291+00:00",
+          "completed_at": "2026-09-26T03:56:54.176235+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:56:50.899301+00:00",
+          "completed_at": "2026-09-26T03:56:52.575178+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:56:52.593744+00:00",
+          "completed_at": "2026-09-26T03:56:54.156813+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:56:54.183456+00:00",
+          "completed_at": "2026-09-26T03:57:03.412422+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:03.433395+00:00",
+          "completed_at": "2026-09-26T03:57:03.455799+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 62,
+        "input_tokens": 1774,
+        "output_tokens": 1227,
+        "duration_ms": 15971,
+        "retrieval_ms": 53,
+        "synthesis_ms": 9225
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 1,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2841,
+        "used_output_tokens": 1529,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 8,
+      "citations": 3,
+      "gaps": 4,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    },
+    {
+      "job_id": "6b918aa5-6599-4c75-90be-839a748fbf83",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 2,
+      "backend_ms": 17195,
+      "client_elapsed_ms": 17337,
+      "plan_hash": "0d89fbf4d32d5a23736586b895f55d816018db0a6b9e675f7e8ab224a67ebbf7",
+      "plan": [
+        {
+          "key": "retention_comparison",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's record retention periods and related retention rules. Identify stated durations, triggering events, scope, exceptions, disposal or preservation conditions, agreements, differences, and any retention details the sources do not specify. Support each finding with precise citations to the relevant source.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "execution_comparison",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's approaches to executing requests. Identify the request workflow, actors, systems or methods, verification and authorization steps, timing, fulfillment, exceptions, and escalation or tracking practices. Summarize agreements, differences, and what the sources do not tell us, with precise citations to the relevant source.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retention_comparison",
+            "execution_comparison"
+          ]
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "extract_evidence"
+          ]
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesize"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": true,
+      "tasks": [
+        {
+          "key": "execution_comparison",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:09.984154+00:00",
+          "completed_at": "2026-09-26T03:57:11.579086+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:11.589721+00:00",
+          "completed_at": "2026-09-26T03:57:11.604157+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retention_comparison",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:09.987417+00:00",
+          "completed_at": "2026-09-26T03:57:11.473385+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:11.612578+00:00",
+          "completed_at": "2026-09-26T03:57:21.679198+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:21.688462+00:00",
+          "completed_at": "2026-09-26T03:57:21.706950+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 116,
+        "input_tokens": 1774,
+        "output_tokens": 1326,
+        "duration_ms": 16235,
+        "retrieval_ms": 41,
+        "synthesis_ms": 10063
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 2,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2895,
+        "used_output_tokens": 1709,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 10,
+      "citations": 3,
+      "gaps": 6,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    }
+  ],
+  "samples": [
+    {
+      "pair": 1,
+      "job_id": "90054296-3f40-4df3-84da-f77f6b8f5149",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 1,
+      "backend_ms": 17754,
+      "client_elapsed_ms": 18393,
+      "plan_hash": "093662441548943f921e0c97da2875fb6c8f422446533354017f156640e8fbd7",
+      "plan": [
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's record retention periods and related retention rules. Identify each source's stated periods, scope, triggers, exceptions, agreements, differences, and any retention details the sources do not specify, with precise citations.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's request execution approaches. Identify how each handles, processes, authorizes, fulfills, or otherwise executes requests; summarize agreements, differences, relevant conditions, and what the sources do not explain, with precise citations.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retrieve_retention",
+            "retrieve_execution"
+          ]
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "extract_evidence"
+          ]
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesize"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": false,
+      "tasks": [
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:29.659638+00:00",
+          "completed_at": "2026-09-26T03:57:29.668052+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:26.445992+00:00",
+          "completed_at": "2026-09-26T03:57:28.085215+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:28.102016+00:00",
+          "completed_at": "2026-09-26T03:57:29.649944+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:29.677564+00:00",
+          "completed_at": "2026-09-26T03:57:39.614837+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:39.627832+00:00",
+          "completed_at": "2026-09-26T03:57:39.641673+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 91,
+        "input_tokens": 1774,
+        "output_tokens": 1152,
+        "duration_ms": 17143,
+        "retrieval_ms": 41,
+        "synthesis_ms": 9933
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 1,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2870,
+        "used_output_tokens": 1498,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 7,
+      "citations": 3,
+      "gaps": 4,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    },
+    {
+      "pair": 1,
+      "job_id": "7bb4060f-b6f5-4323-9183-9e734addd46d",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 2,
+      "backend_ms": 13260,
+      "client_elapsed_ms": 14243,
+      "plan_hash": "74e9f10fd2602667367a8b87eb77adfc4496f73a60e874d923b389181d87d230",
+      "plan": [
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's record retention periods and related retention rules. Identify explicit durations, triggering events, scope, exceptions, and any agreements, differences, citations, or missing information in the approved sources.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's request execution approaches. Identify how requests are initiated, processed, fulfilled, verified, timed, or limited, and note agreements, differences, citations, and what the approved sources do not establish.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retrieve_retention",
+            "retrieve_execution"
+          ]
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "extract_evidence"
+          ]
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesize"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": true,
+      "tasks": [
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:47.068900+00:00",
+          "completed_at": "2026-09-26T03:57:47.075968+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:45.434740+00:00",
+          "completed_at": "2026-09-26T03:57:47.048977+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:45.439392+00:00",
+          "completed_at": "2026-09-26T03:57:46.932992+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:47.082314+00:00",
+          "completed_at": "2026-09-26T03:57:54.363625+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:57:54.385827+00:00",
+          "completed_at": "2026-09-26T03:57:54.404424+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 83,
+        "input_tokens": 1774,
+        "output_tokens": 861,
+        "duration_ms": 12922,
+        "retrieval_ms": 44,
+        "synthesis_ms": 7273
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 2,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2862,
+        "used_output_tokens": 1212,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 6,
+      "citations": 3,
+      "gaps": 4,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    },
+    {
+      "pair": 2,
+      "job_id": "56972034-d95b-422f-a359-dc4f2b4eb307",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 2,
+      "backend_ms": 15659,
+      "client_elapsed_ms": 16276,
+      "plan_hash": "cd21faaa7b92aefd3d46e74405754dbd8b93ebe6b8b8d8d13dfa4929facee26f",
+      "plan": [
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's record retention periods and related retention rules, documenting each source's stated durations, scope, triggers, exceptions, and any material omissions or ambiguities with precise citations.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's request execution approaches, documenting how each handles, processes, authorizes, fulfills, and communicates requests, including agreements, differences, and what the sources do not specify, with precise citations.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retrieve_retention",
+            "retrieve_execution"
+          ]
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "extract_evidence"
+          ]
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesize"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": true,
+      "tasks": [
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:02.050407+00:00",
+          "completed_at": "2026-09-26T03:58:02.057258+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:00.390421+00:00",
+          "completed_at": "2026-09-26T03:58:02.040603+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:00.386954+00:00",
+          "completed_at": "2026-09-26T03:58:01.986637+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:02.063427+00:00",
+          "completed_at": "2026-09-26T03:58:11.069708+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:11.088566+00:00",
+          "completed_at": "2026-09-26T03:58:11.109742+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 81,
+        "input_tokens": 1774,
+        "output_tokens": 1069,
+        "duration_ms": 14637,
+        "retrieval_ms": 35,
+        "synthesis_ms": 9000
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 2,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2860,
+        "used_output_tokens": 1419,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 9,
+      "citations": 3,
+      "gaps": 4,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    },
+    {
+      "pair": 2,
+      "job_id": "0f9f5a72-388c-4f9f-ad84-2dc55d105fc2",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 1,
+      "backend_ms": 19066,
+      "client_elapsed_ms": 19380,
+      "plan_hash": "57cea3c0a2e76de9ec231646289a8bbaecc4e64fce93b9e41fae748260afd471",
+      "plan": [
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's record retention periods and related retention policies. Identify the stated periods, the records or data covered, triggering events or exceptions, agreements and differences, and any retention details the approved sources do not specify, with precise citations to each source.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's approaches to executing requests. Identify the request workflow, responsible parties, authentication or verification steps, timelines, delivery or fulfillment methods, exceptions, agreements and differences, and any execution details the approved sources do not specify, with precise citations to each source.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retrieve_retention",
+            "retrieve_execution"
+          ]
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "extract_evidence"
+          ]
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesize"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": false,
+      "tasks": [
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:19.821246+00:00",
+          "completed_at": "2026-09-26T03:58:19.829608+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:16.664387+00:00",
+          "completed_at": "2026-09-26T03:58:18.172556+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:18.189158+00:00",
+          "completed_at": "2026-09-26T03:58:19.811360+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:19.836900+00:00",
+          "completed_at": "2026-09-26T03:58:30.795652+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:30.820264+00:00",
+          "completed_at": "2026-09-26T03:58:30.848497+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 105,
+        "input_tokens": 1774,
+        "output_tokens": 1334,
+        "duration_ms": 18378,
+        "retrieval_ms": 51,
+        "synthesis_ms": 10952
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 1,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2884,
+        "used_output_tokens": 1711,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 7,
+      "citations": 3,
+      "gaps": 7,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    },
+    {
+      "pair": 3,
+      "job_id": "ff2f0785-06c6-469d-a97b-20091f50a134",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 1,
+      "backend_ms": 18384,
+      "client_elapsed_ms": 19332,
+      "plan_hash": "6400d368227511003bd4bf917356a6aefb91ce3f17955611c1a867f76ac84c26",
+      "plan": [
+        {
+          "key": "retention",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "What record retention periods, retention rules, exceptions, and related limitations are stated for Alpha and Beta, with precise source citations and explicit identification of any missing or unclear information?",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "execution",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "What request execution approaches, workflows, procedures, timing, controls, and limitations are stated for Alpha and Beta, with precise source citations and explicit identification of any missing or unclear information?",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retention",
+            "execution"
+          ]
+        },
+        {
+          "key": "synthesis",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "evidence"
+          ]
+        },
+        {
+          "key": "validate",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesis"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": false,
+      "tasks": [
+        {
+          "key": "evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:38.732710+00:00",
+          "completed_at": "2026-09-26T03:58:38.741207+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "execution",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:35.404430+00:00",
+          "completed_at": "2026-09-26T03:58:37.035254+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retention",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:37.052423+00:00",
+          "completed_at": "2026-09-26T03:58:38.722187+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesis",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:38.748641+00:00",
+          "completed_at": "2026-09-26T03:58:49.551262+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:49.566647+00:00",
+          "completed_at": "2026-09-26T03:58:49.589905+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 70,
+        "input_tokens": 1774,
+        "output_tokens": 1428,
+        "duration_ms": 18117,
+        "retrieval_ms": 57,
+        "synthesis_ms": 10798
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 1,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2849,
+        "used_output_tokens": 1761,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 10,
+      "citations": 3,
+      "gaps": 8,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    },
+    {
+      "pair": 3,
+      "job_id": "066846aa-a2ca-46d3-8e91-194e06689b42",
+      "status": "completed_with_gaps",
+      "max_parallel_tasks": 2,
+      "backend_ms": 16985,
+      "client_elapsed_ms": 17299,
+      "plan_hash": "df3c812bddd382c74068ee19b0cc8931ed874df9206cea7bba96d211ace553f7",
+      "plan": [
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's record retention periods and related retention rules, practices, exceptions, and stated limitations. Identify precise supporting passages and note any information the sources do not provide.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "input": {
+            "question": "Compare Alpha and Beta's request execution approaches, including procedures, workflows, timing, responsibilities, conditions, and limitations. Identify precise supporting passages and note any information the sources do not provide.",
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": []
+        },
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "retrieve_retention",
+            "retrieve_execution"
+          ]
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "extract_evidence"
+          ]
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "input": {
+            "question": null,
+            "url_index": null,
+            "source_ids": []
+          },
+          "optional": false,
+          "depends_on": [
+            "synthesize"
+          ]
+        }
+      ],
+      "retrieval_branch_count": 2,
+      "retrieval_tasks_overlapped": true,
+      "tasks": [
+        {
+          "key": "extract_evidence",
+          "type": "extract_evidence",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:57.180936+00:00",
+          "completed_at": "2026-09-26T03:58:57.188527+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_execution",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:55.519760+00:00",
+          "completed_at": "2026-09-26T03:58:57.172325+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "retrieve_retention",
+          "type": "retrieve_internal",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:55.522515+00:00",
+          "completed_at": "2026-09-26T03:58:57.168977+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "synthesize",
+          "type": "synthesize",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:58:57.195169+00:00",
+          "completed_at": "2026-09-26T03:59:07.492850+00:00",
+          "attempt_count": 1
+        },
+        {
+          "key": "validate_result",
+          "type": "validate_result",
+          "state": "succeeded",
+          "started_at": "2026-09-26T03:59:07.514944+00:00",
+          "completed_at": "2026-09-26T03:59:07.548752+00:00",
+          "attempt_count": 1
+        }
+      ],
+      "usage": {
+        "embedding_tokens": 72,
+        "input_tokens": 1774,
+        "output_tokens": 1410,
+        "duration_ms": 16069,
+        "retrieval_ms": 32,
+        "synthesis_ms": 10293
+      },
+      "budget": {
+        "max_depth": 6,
+        "max_tasks": 12,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 20000,
+        "max_parallel_tasks": 2,
+        "max_provider_calls": 20,
+        "max_duration_seconds": 600,
+        "used_tasks": 5,
+        "used_provider_calls": 4,
+        "used_input_tokens": 2851,
+        "used_output_tokens": 1777,
+        "reserved_input_tokens": 0,
+        "reserved_output_tokens": 0,
+        "unknown_usage_calls": 0
+      },
+      "model": "gpt-5.6-luna-2026-07-09",
+      "claims": 11,
+      "citations": 3,
+      "gaps": 8,
+      "source_snapshots": [
+        "5ef60f5a-eec4-4377-88b2-afd2b94e499e",
+        "104ba9be-5ec7-429d-bf55-30fd51feb4f9"
+      ],
+      "citation_integrity_passed": true
+    }
+  ],
+  "configuration": {
+    "model": "gpt-5.6-luna",
+    "embedding_deployment": "text-embedding-3-large",
+    "embedding_dimensions": 3072,
+    "queue_backend": "celery"
+  },
+  "project_id": "bbb756ea-7da5-4080-8d90-0eee562a5bc3",
+  "summary": {
+    "samples_per_variant": 3,
+    "sequential_median_ms": 18384,
+    "parallel_median_ms": 15659,
+    "observed_median_reduction_percent": 14.82,
+    "parallel_overlap_observed": true,
+    "distinct_plan_hashes": 6,
+    "limitation": "Small synthetic corpus; model plans/output lengths and Azure latency vary. This is an end-to-end observation, not proof of a universal or causal 50% speedup. Citation identity was checked; semantic quality still requires review."
+  }
+}

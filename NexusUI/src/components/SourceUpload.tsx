@@ -23,7 +23,8 @@ export default function SourceUpload() {
     let count = 0;
     try {
       for (const file of Array.from(files)) {
-        if (!/\.(pdf|docx)$/i.test(file.name)) throw new Error('Choose PDF or DOCX documents.');
+        if (!/\.(pdf|doc|docx)$/i.test(file.name))
+          throw new Error('Choose PDF, DOC or DOCX documents.');
         if (system && file.size > system.max_upload_bytes)
           throw new Error(file.name + ' exceeds the upload limit.');
         const form = new FormData();
@@ -50,7 +51,7 @@ export default function SourceUpload() {
       <input
         ref={input}
         type="file"
-        accept=".pdf,.docx"
+        accept=".pdf,.doc,.docx"
         multiple
         aria-label="Upload documents"
         className="visually-hidden"
@@ -73,7 +74,7 @@ export default function SourceUpload() {
         ) : (
           <>
             <Upload size={19} />
-            <span>Drop PDF or DOCX files here, or click to upload</span>
+            <span>Drop PDF, DOC or DOCX files here, or click to upload</span>
           </>
         )}
       </button>
@@ -83,7 +84,7 @@ export default function SourceUpload() {
       </p>
       {system?.worker_count === 0 && (
         <p className="warning-notice">
-          Worker offline. Uploads will wait safely in the queue until it starts.
+          Worker not responding. Uploads stay saved until delivery resumes.
         </p>
       )}
       {message && (

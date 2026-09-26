@@ -130,6 +130,7 @@ class ResearchRetrievalResult(Base):
     chunk_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("document_chunks.id"), nullable=False)
     source_rank: Mapped[int] = mapped_column(Integer, nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=False)
+    ranking: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     selected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

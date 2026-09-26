@@ -3,7 +3,10 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select, text
+from kombu.exceptions import OperationalError
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.projects import project_or_404
@@ -11,6 +14,7 @@ from app.config import Settings, get_settings
 from app.db.job_models import JobBudget, JobEvent, ResearchJob, ResearchPlan, ResultReview
 from app.db.research_models import ResearchResult
 from app.db.session import get_db
+from app.jobs.celery_app import celery_app
 from app.jobs.contracts import BudgetOptions, budget_limits
 
 router = APIRouter(prefix="/v1", tags=["local operations and evaluation"])
@@ -18,15 +22,15 @@ router = APIRouter(prefix="/v1", tags=["local operations and evaluation"])
 
 @router.get("/system")
 def local_system(db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
-    workers = db.scalar(
-        text(
-            "SELECT count(*) FROM procrastinate_workers "
-            "WHERE last_heartbeat > now() - interval '30 seconds'"
-        )
-    )
+    try:
+        workers = len(celery_app.control.inspect(timeout=0.5).ping() or {})
+    except (OperationalError, RedisConnectionError, RedisTimeoutError, OSError):
+        workers = 0
     return {
         "deployment": "local",
         "worker_count": workers,
+        "queue_backend": "celery",
+        "default_retrieval": "hybrid",
         "model": settings.azure_openai_model,
         "embedding_deployment": settings.azure_openai_embedding_deployment,
         "embedding_dimensions": settings.azure_openai_embedding_dimensions,
@@ -39,7 +43,7 @@ def local_system(db: Session = Depends(get_db), settings: Settings = Depends(get
                 settings.azure_openai_embedding_deployment,
             )
         ),
-        "supported_formats": ["PDF", "DOCX"],
+        "supported_formats": ["PDF", "DOC", "DOCX"],
         "max_upload_bytes": settings.max_upload_bytes,
         "max_sources": settings.max_research_sources,
         "max_top_k": settings.max_top_k,
@@ -103,6 +107,7 @@ def evaluate_project(project_id: UUID, db: Session = Depends(get_db)):
                 "job_id": str(job.id),
                 "question": job.question,
                 "status": job.status,
+                "outcome": result.status if result else None,
                 "mode": job.mode,
                 "duration_ms": result.duration_ms if result else None,
                 "provider_calls": budget.used_provider_calls,

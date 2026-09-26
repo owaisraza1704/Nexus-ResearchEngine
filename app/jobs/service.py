@@ -16,6 +16,7 @@ from app.db.job_models import (
     WorkspaceSource,
 )
 from app.db.models import Workspace
+from app.db.research_models import ResearchResult, ResearchRun
 from app.errors import NexusError
 from app.jobs.contracts import (
     TERMINAL_JOBS,
@@ -24,7 +25,7 @@ from app.jobs.contracts import (
     budget_limits,
     canonical_hash,
 )
-from app.jobs.queue import enqueue, producer
+from app.jobs.queue import cancel_delivery, enqueue
 from app.jobs.state import check_active, event, finish_job, locked_job
 from app.jobs.web import validate_web_policy
 from app.research.service import create_run
@@ -85,6 +86,13 @@ def create_job(db: Session, request: JobRequest, settings: Settings) -> Research
         **run.answer_config,
         "timeout_seconds": limits["max_duration_seconds"],
         "min_cited_sources": min(2, source_count),
+    }
+    run.retrieval_config = {
+        **run.retrieval_config,
+        "strategy": request.retrieval_strategy,
+        "fusion": "rrf" if request.retrieval_strategy == "hybrid" else None,
+        "rrf_k": 60 if request.retrieval_strategy == "hybrid" else None,
+        "keyword_language": "english" if request.retrieval_strategy == "hybrid" else None,
     }
     job = ResearchJob(
         workspace_id=workspace.id,
@@ -148,9 +156,7 @@ def stop_pending(db: Session, job: ResearchJob, *, cancelled: bool) -> None:
         if task.state in TERMINAL_TASKS or task.state == "running":
             continue
         if task.queue_job_id:
-            producer.job_manager.cancel_job_by_id(
-                task.queue_job_id, connection=db.connection().connection.driver_connection
-            )
+            cancel_delivery(db, task.queue_job_id)
         task.state = "cancelled" if cancelled else "skipped"
         task.completed_at = datetime.now(timezone.utc)
 
@@ -172,9 +178,7 @@ def cancel_job(db: Session, job_id: UUID) -> ResearchJob:
     )
     if not planning and not active:
         if job.queue_job_id:
-            producer.job_manager.cancel_job_by_id(
-                job.queue_job_id, connection=db.connection().connection.driver_connection
-            )
+            cancel_delivery(db, job.queue_job_id)
         finish_job(db, job, "cancelled")
     db.commit()
     return job
@@ -200,7 +204,13 @@ def job_progress(db: Session, job: ResearchJob) -> dict:
         "run_id": job.run_id,
         "question": job.question,
         "mode": job.mode,
+        "retrieval_strategy": db.get(ResearchRun, job.run_id).retrieval_config.get(
+            "strategy", "vector"
+        ),
         "status": job.status,
+        "outcome": db.scalar(
+            select(ResearchResult.status).where(ResearchResult.research_run_id == job.run_id)
+        ),
         "progress": {
             "total_tasks": sum(counts.values()),
             **{

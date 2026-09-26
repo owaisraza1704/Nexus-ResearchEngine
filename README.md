@@ -17,12 +17,12 @@ Suppose you want to answer:
 You can bring in architecture documents, evaluation reports, and specific public web pages, then investigate the question within that selected material:
 
 1. **Create a research workspace.** Give the investigation a name, save a draft question, and keep its sources and results separate from other topics.
-2. **Choose your sources.** Upload text-extractable PDF or DOCX files, attach existing documents, or explicitly approve public HTTPS pages for the run.
+2. **Choose your sources.** Upload text-extractable PDF, DOCX, or legacy DOC files, attach existing documents, or explicitly approve public HTTPS pages for the run.
 3. **Run the research.** Choose a focused answer, comparison, synthesis, evidence search, or an agentic investigation. Follow the actual tasks and progress, or cancel the run.
 4. **Inspect the findings.** Open citations to their exact saved passages, review which sources contributed, and examine reported gaps and possible contradictions.
 5. **Keep and reuse the result.** Reopen saved reports, export Markdown or JSON, and record your own quality ratings and notes.
 
-Document processing and research run in the background. Closing the browser does not stop accepted work while the local backend and worker remain running.
+Document processing and research run in the background through Celery workers. Closing the browser does not stop accepted work while the local backend and worker remain running. Independent research questions can run in parallel; hybrid retrieval combines keyword matches with semantic vector search before the evidence is brought together into a report.
 
 ## Ways to research
 
@@ -41,3 +41,7 @@ Agentic research is bounded: the system validates the plan before running it, an
 Nexus keeps the material behind a result accessible through its source inspector, evidence explorer, and source–evidence–claim graph. Saved citations refer to the document snapshot used for that run, so an older finding remains traceable.
 
 Results include source coverage, reported gaps, and candidate contradictions. Citation checks verify references and saved passages; they do not guarantee that a model's interpretation is correct. The evaluation screen separates execution statistics from your own assessments of relevance, grounding, and citation quality.
+
+Nexus is intended for your local machine, using your configured Azure deployments for embeddings and generation. Web content comes from pages you explicitly approve, not autonomous web search. Redis is used for Celery messages only; prompt caching is not implemented.
+
+See [local setup and workflow](docs/mvp3.md) for running the product and [performance verification](docs/performance.md) for what has actually been measured.

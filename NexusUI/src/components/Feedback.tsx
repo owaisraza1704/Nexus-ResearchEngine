@@ -1,6 +1,6 @@
 'use client';
 import { AlertCircle, LoaderCircle } from 'lucide-react';
-import { readable } from '@/data/research';
+import { hasResult, statusLabel, type ResultOutcome } from '@/data/research';
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
   return (
@@ -18,6 +18,13 @@ export function Loading({ text = 'Loading…' }: { text?: string }) {
     </div>
   );
 }
-export function StatusBadge({ status }: { status: string }) {
-  return <span className={'state-badge state-' + status}>{readable(status)}</span>;
+export function StatusBadge({
+  status,
+  outcome,
+}: {
+  status: string;
+  outcome?: ResultOutcome | null;
+}) {
+  const state = hasResult(status) && outcome === 'insufficient_context' ? outcome : status;
+  return <span className={'state-badge state-' + state}>{statusLabel(status, outcome)}</span>;
 }

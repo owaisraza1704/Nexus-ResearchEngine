@@ -46,7 +46,7 @@ export default function Reports() {
             {!result && !error && <Loading />}
             {result && (
               <article className="report-document" key={result.job_id}>
-                <StatusBadge status={result.status} />
+                <StatusBadge status={result.status} outcome={result.outcome} />
                 <h2>{result.question}</h2>
                 <ResultContent result={result} />
               </article>

@@ -150,6 +150,11 @@ def store_source_evidence(
             chunk_id=chunk.chunk_id,
             source_rank=rank,
             score=chunk.cosine_distance,
+            ranking={
+                "cosine_distance": chunk.cosine_distance,
+                "fusion_score": chunk.fusion_score,
+                "lexical_score": chunk.lexical_score,
+            },
             selected=selected,
         )
         db.add(result)

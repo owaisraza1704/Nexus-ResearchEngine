@@ -23,7 +23,7 @@ export default function ResearchRunList({ runs }: { runs?: RunSummary[] }) {
           <div>
             <h3>{run.question}</h3>
             <p>
-              <StatusBadge status={run.status} />
+              <StatusBadge status={run.status} outcome={run.outcome} />
               <span>{MODES[run.mode]}</span>
               <time>{formatDate(run.created_at)}</time>
             </p>

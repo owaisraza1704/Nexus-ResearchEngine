@@ -175,6 +175,8 @@ def retrieve(db, job, task, attempt, settings) -> dict:
             top_k=run.retrieval_config["top_k_per_source"],
             document_id=pin.document_id,
             embedding_model=embedding.model,
+            strategy=run.retrieval_config.get("strategy", "vector"),
+            question=task.input_json["question"],
         )
         candidates.extend(
             {
@@ -182,6 +184,8 @@ def retrieve(db, job, task, attempt, settings) -> dict:
                 "document_id": str(chunk.document_id),
                 "source_id": str(chunk.source_id),
                 "cosine_distance": chunk.cosine_distance,
+                "fusion_score": chunk.fusion_score,
+                "lexical_score": chunk.lexical_score,
             }
             for chunk in chunks
         )
@@ -195,6 +199,7 @@ def retrieve(db, job, task, attempt, settings) -> dict:
 
 def extract_evidence(db, job, task, attempt, settings) -> dict:
     run = db.get(ResearchRun, job.run_id)
+    hybrid = run.retrieval_config.get("strategy") == "hybrid"
     branches = db.scalars(
         select(ResearchTask)
         .where(
@@ -208,7 +213,14 @@ def extract_evidence(db, job, task, attempt, settings) -> dict:
     for branch in branches:
         for candidate in branch.output_ref["candidates"]:
             previous = candidates.get(candidate["chunk_id"])
-            if previous is None or candidate["cosine_distance"] < previous["cosine_distance"]:
+            if previous is None:
+                candidates[candidate["chunk_id"]] = candidate
+                continue
+            if hybrid:
+                better = (candidate.get("fusion_score") or 0) > (previous.get("fusion_score") or 0)
+            else:
+                better = candidate["cosine_distance"] < previous["cosine_distance"]
+            if better:
                 candidates[candidate["chunk_id"]] = candidate
     pins = db.execute(
         select(ResearchRunSource, SourceCoverage)
@@ -237,9 +249,14 @@ def extract_evidence(db, job, task, attempt, settings) -> dict:
                     text=chunk.text,
                     locator=chunk.locator,
                     cosine_distance=candidate["cosine_distance"],
+                    fusion_score=candidate.get("fusion_score"),
+                    lexical_score=candidate.get("lexical_score"),
                 )
             )
-        chunks.sort(key=lambda chunk: (chunk.cosine_distance, chunk.sequence, str(chunk.chunk_id)))
+        chunks.sort(key=lambda chunk: (
+            -(chunk.fusion_score or 0) if hybrid else chunk.cosine_distance,
+            chunk.sequence, str(chunk.chunk_id),
+        ))
         evidence.extend(
             store_source_evidence(
                 db,
@@ -261,7 +278,7 @@ def extract_evidence(db, job, task, attempt, settings) -> dict:
         "selected_chunk_count": len(evidence),
         "context_chars": sum(len(item.excerpt) for item in evidence),
         "query_count": len(branches),
-        "metric": "cosine_distance",
+        "metric": "rrf" if hybrid else "cosine_distance",
     }
     db.flush()
     return {"run_id": str(run.id), "evidence_count": len(evidence)}

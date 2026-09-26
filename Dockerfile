@@ -5,13 +5,15 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /bin/uv
 WORKDIR /app
 
 ENV PATH="/app/.venv/bin:$PATH" \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    NUMBA_NUM_THREADS=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
         libxcb1 \
+        libreoffice-writer \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./

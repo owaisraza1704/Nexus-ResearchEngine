@@ -16,10 +16,18 @@ export type JobStatus =
   | 'failed'
   | 'completed'
   | 'completed_with_gaps';
+export type ResultOutcome = 'completed' | 'insufficient_context';
 export const isTerminal = (status: string) =>
   ['completed', 'completed_with_gaps', 'failed', 'cancelled'].includes(status);
 export const hasResult = (status: string) => ['completed', 'completed_with_gaps'].includes(status);
 export const readable = (value: string) => value.replace(/_/g, ' ');
+export function statusLabel(status: string, outcome?: ResultOutcome | null) {
+  if (hasResult(status) && outcome === 'insufficient_context') {
+    return 'Finished — insufficient evidence';
+  }
+  if (status === 'completed_with_gaps') return 'Completed — gaps noted';
+  return readable(status);
+}
 export const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
@@ -28,7 +36,7 @@ export const formatDate = (value: string) =>
 export type ResearchSource = {
   id: string;
   name: string;
-  type: 'PDF' | 'DOCX' | 'WEB';
+  type: 'PDF' | 'DOC' | 'DOCX' | 'WEB';
   kind: string;
   pages: number | null;
   chunks: number;
@@ -44,6 +52,7 @@ export type ResearchDraft = {
   question: string;
   mode: JobMode;
   top_k: number;
+  retrieval_strategy: 'vector' | 'hybrid';
   source_ids: string[];
   web_urls: string[];
 };
@@ -52,6 +61,7 @@ export type RunSummary = {
   question: string;
   mode: JobMode;
   status: JobStatus;
+  outcome: ResultOutcome | null;
   created_at: string;
   completed_at: string | null;
 };
@@ -70,7 +80,9 @@ export type Job = {
   run_id: string;
   question: string;
   mode: JobMode;
+  retrieval_strategy: 'vector' | 'hybrid';
   status: JobStatus;
+  outcome: ResultOutcome | null;
   progress: Record<string, number>;
   budget: Record<string, number>;
   policy: { allow_web: boolean; allowed_domains: string[]; web_urls: string[] };
@@ -139,7 +151,7 @@ export type Result = {
   run_id: string;
   result_id: string;
   status: JobStatus;
-  outcome: 'completed' | 'insufficient_context';
+  outcome: ResultOutcome;
   mode: JobMode;
   question: string;
   summary: string;
@@ -205,6 +217,8 @@ export type Result = {
 export type SystemInfo = {
   deployment: string;
   worker_count: number;
+  queue_backend: string;
+  default_retrieval: string;
   azure_configured: boolean;
   model: string | null;
   embedding_deployment: string | null;

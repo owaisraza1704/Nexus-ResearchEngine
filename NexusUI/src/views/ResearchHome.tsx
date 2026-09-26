@@ -91,6 +91,7 @@ export default function ResearchHome() {
         mode: draft.mode,
         source_ids: draft.source_ids,
         top_k_per_source: draft.top_k,
+        retrieval_strategy: draft.retrieval_strategy,
         policy: {
           allow_web: urls.length > 0 && approveWeb,
           web_urls: urls,
@@ -218,6 +219,19 @@ export default function ResearchHome() {
               ))}
             </div>
             <div className="composer-submit">
+              <label htmlFor="retrieval-strategy">Retrieval</label>
+              <select
+                id="retrieval-strategy"
+                value={draft.retrieval_strategy}
+                onChange={(e) =>
+                  change({
+                    retrieval_strategy: e.target.value as ResearchDraft['retrieval_strategy'],
+                  })
+                }
+              >
+                <option value="hybrid">Hybrid · keywords + vectors</option>
+                <option value="vector">Vector only</option>
+              </select>
               <label htmlFor="top-k">Passages / source</label>
               <select
                 id="top-k"
@@ -255,7 +269,7 @@ export default function ResearchHome() {
         )}
         {system?.worker_count === 0 && (
           <p className="warning-notice">
-            Worker offline. New runs will remain queued until the worker starts.
+            Worker not responding. New runs stay saved until delivery resumes.
           </p>
         )}
         <div className="draft-actions">

@@ -82,6 +82,7 @@ def test_parse_document_normalizes_text_and_preserves_provenance(
 
 def test_mime_type_for_path_supports_pdf_and_docx() -> None:
     assert mime_type_for_path(Path("document.pdf")) == "application/pdf"
+    assert mime_type_for_path(Path("document.doc")) == "application/msword"
     assert mime_type_for_path(Path("document.docx")) == (
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
@@ -113,3 +114,27 @@ def test_parse_document_wraps_parser_failures(monkeypatch: pytest.MonkeyPatch) -
 
     with pytest.raises(DocumentParseError, match="Docling could not fully parse"):
         parse_document(Path("broken.pdf"))
+
+
+def test_doc_conversion_preserves_parser_and_conversion_metadata(monkeypatch, tmp_path):
+    original = tmp_path / "original.doc"
+    original.write_bytes(b"original bytes")
+    document = SimpleNamespace(
+        texts=[SimpleNamespace(text="Legacy source evidence", label="text", prov=[])], pages={}
+    )
+
+    def convert(path, directory, timeout):
+        assert path == original
+        assert timeout > 0
+        output = directory / "original.docx"
+        output.write_bytes(b"converted bytes")
+        return output, "LibreOffice test"
+
+    monkeypatch.setattr(docling_parser, "convert_legacy_word", convert)
+    monkeypatch.setattr(docling_parser, "_document_converter", lambda _: FakeConverter(document))
+    parsed = parse_document(original)
+    assert parsed.normalized_text == "Legacy source evidence"
+    assert parsed.parser_name == "docling"
+    assert parsed.conversion_metadata["converter_version"] == "LibreOffice test"
+    assert parsed.conversion_metadata["locator_basis"] == "converted_docx_blocks"
+    assert original.read_bytes() == b"original bytes"

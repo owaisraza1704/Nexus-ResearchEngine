@@ -3,7 +3,14 @@ import { useState } from 'react';
 import { useApi, api } from '@/lib/api';
 import { ErrorNotice, Loading, StatusBadge } from '@/components/Feedback';
 import ResearchDiagram from '@/components/ResearchDiagram';
-import { formatDate, isTerminal, readable, type Job, type Task } from '@/data/research';
+import {
+  formatDate,
+  isTerminal,
+  readable,
+  statusLabel,
+  type Job,
+  type Task,
+} from '@/data/research';
 
 type JobEvent = {
   sequence: number;
@@ -59,7 +66,9 @@ export default function ResearchJob({ job, onChange }: { job: Job; onChange: () 
           <h2>Execution</h2>
           <p className="muted">
             {total ? `${done} of ${total} tasks settled` : 'Waiting for a validated plan'} ·{' '}
-            {readable(job.status)}
+            {statusLabel(job.status, job.outcome)}
+            {' · '}
+            {job.retrieval_strategy === 'hybrid' ? 'Hybrid retrieval' : 'Vector retrieval'}
           </p>
         </div>
         {!isTerminal(job.status) && (
@@ -78,6 +87,13 @@ export default function ResearchJob({ job, onChange }: { job: Job; onChange: () 
         value={done}
         max={total || 1}
       />
+      {job.status === 'completed_with_gaps' && (
+        <p className="warning-notice">
+          {job.outcome === 'insufficient_context'
+            ? 'Execution finished, but the retrieved evidence was insufficient to answer the question. Open Result → Gaps to review what is missing.'
+            : 'Execution finished and produced a result with recorded limitations. Open Result → Gaps to review the unanswered points.'}
+        </p>
+      )}
       {!isTerminal(job.status) && (
         <p className="draft-notice">
           You may close this page. The backend worker owns this job. Cancellation stops new tasks

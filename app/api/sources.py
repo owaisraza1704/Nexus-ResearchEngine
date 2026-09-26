@@ -80,7 +80,7 @@ def upload_source(
         mime_type_for_path(Path(filename))
     except UnsupportedDocumentType as exc:
         raise NexusError(
-            "UNSUPPORTED_MEDIA_TYPE", "Only PDF and DOCX files are supported.", 415
+            "UNSUPPORTED_MEDIA_TYPE", "Only PDF, DOC and DOCX files are supported.", 415
         ) from exc
 
     content = file.file.read(settings.max_upload_bytes + 1)

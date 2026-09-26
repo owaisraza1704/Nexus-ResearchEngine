@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useResearch } from '@/components/ResearchStore';
 import { ErrorNotice, Loading, StatusBadge } from '@/components/Feedback';
 import { api, useApi } from '@/lib/api';
-import { hasResult, readable, type Result } from '@/data/research';
+import { hasResult, readable, type Result, type ResultOutcome } from '@/data/research';
 
 type EvaluationData = {
   job_count: number;
@@ -20,6 +20,7 @@ type EvaluationData = {
     job_id: string;
     question: string;
     status: string;
+    outcome: ResultOutcome | null;
     mode: string;
     duration_ms: number | null;
     provider_calls: number;
@@ -154,10 +155,13 @@ export default function Evaluation() {
                 <strong>{data.job_count}</strong>
               </div>
               <div className="metric">
-                <span>Completed / with gaps</span>
+                <span>Results / insufficient evidence</span>
                 <strong>
-                  {data.statuses.completed || 0}
-                  <small> / {data.statuses.completed_with_gaps || 0}</small>
+                  {data.runs.filter((run) => run.outcome === 'completed').length}
+                  <small>
+                    {' / '}
+                    {data.runs.filter((run) => run.outcome === 'insufficient_context').length}
+                  </small>
                 </strong>
               </div>
               <div className="metric">
@@ -242,7 +246,7 @@ export default function Evaluation() {
                     <Link href={`/research/${research.id}/runs/${run.job_id}`}>{run.question}</Link>
                   </td>
                   <td>
-                    <StatusBadge status={run.status} />
+                    <StatusBadge status={run.status} outcome={run.outcome} />
                   </td>
                   <td>
                     {run.duration_ms == null ? '—' : (run.duration_ms / 1000).toFixed(1) + 's'}

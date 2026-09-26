@@ -64,6 +64,7 @@ def store_document(
             "chunker_name": "docling.HierarchicalChunker",
             "chunker_version": version("docling-core"),
             "chunk_count": len(chunks),
+            **({"conversion": parsed.conversion_metadata} if parsed.conversion_metadata else {}),
             **metadata,
         },
         ready_at=datetime.now(timezone.utc),

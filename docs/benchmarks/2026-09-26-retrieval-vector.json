@@ -1,0 +1,312 @@
+{
+  "strategy": "vector",
+  "source_content_sha256": "e3722e2797495532e62a6602b566bb2e626faa0369bcef190283a40593be6ea5",
+  "case_count": 20,
+  "top_k": 5,
+  "metrics": {
+    "nDCG@5": 0.8895780997665325,
+    "R@1": 0.6433333333333333,
+    "R@3": 0.8800000000000001,
+    "R@5": 0.9316666666666666,
+    "RR@5": 0.9
+  },
+  "cases": [
+    {
+      "id": "objective",
+      "relevant_sequences": [
+        2
+      ],
+      "retrieved_sequences": [
+        2,
+        52,
+        54,
+        7,
+        1
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "research_workflow",
+      "relevant_sequences": [
+        7
+      ],
+      "retrieved_sequences": [
+        2,
+        7,
+        26,
+        12,
+        1
+      ],
+      "first_relevant_rank": 2
+    },
+    {
+      "id": "complex_research_requirements",
+      "relevant_sequences": [
+        6,
+        9,
+        10,
+        11,
+        52
+      ],
+      "retrieved_sequences": [
+        52,
+        9,
+        6,
+        10,
+        2
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "central_contribution",
+      "relevant_sequences": [
+        52
+      ],
+      "retrieved_sequences": [
+        52,
+        7,
+        11,
+        53,
+        9
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "retrieval_signals",
+      "relevant_sequences": [
+        30,
+        31
+      ],
+      "retrieved_sequences": [
+        30,
+        20,
+        31,
+        6,
+        12
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "evidence_provenance",
+      "relevant_sequences": [
+        22,
+        25,
+        32,
+        33,
+        34,
+        41
+      ],
+      "retrieved_sequences": [
+        22,
+        25,
+        33,
+        41,
+        34
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "planner_role",
+      "relevant_sequences": [
+        27
+      ],
+      "retrieved_sequences": [
+        27,
+        39,
+        2,
+        7,
+        52
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "parallel_execution",
+      "relevant_sequences": [
+        29
+      ],
+      "retrieved_sequences": [
+        29,
+        40,
+        19,
+        39,
+        8
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "initial_scope",
+      "relevant_sequences": [
+        38,
+        49
+      ],
+      "retrieved_sequences": [
+        53,
+        49,
+        5,
+        4,
+        38
+      ],
+      "first_relevant_rank": 2
+    },
+    {
+      "id": "quality_evaluation",
+      "relevant_sequences": [
+        44,
+        47
+      ],
+      "retrieved_sequences": [
+        47,
+        44,
+        1,
+        45,
+        7
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "core_technologies",
+      "relevant_sequences": [
+        3
+      ],
+      "retrieved_sequences": [
+        3,
+        36,
+        37,
+        16,
+        48
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "engineering_themes",
+      "relevant_sequences": [
+        4
+      ],
+      "retrieved_sequences": [
+        4,
+        5,
+        53,
+        0,
+        8
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "research_capabilities",
+      "relevant_sequences": [
+        12
+      ],
+      "retrieved_sequences": [
+        12,
+        49,
+        50,
+        38,
+        2
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "system_architecture",
+      "relevant_sequences": [
+        15,
+        16
+      ],
+      "retrieved_sequences": [
+        48,
+        15,
+        2,
+        12,
+        36
+      ],
+      "first_relevant_rank": 2
+    },
+    {
+      "id": "request_inputs",
+      "relevant_sequences": [
+        17
+      ],
+      "retrieved_sequences": [
+        17,
+        28,
+        12,
+        35,
+        8
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "evidence_to_report",
+      "relevant_sequences": [
+        23,
+        24,
+        25,
+        26
+      ],
+      "retrieved_sequences": [
+        32,
+        24,
+        23,
+        41,
+        22
+      ],
+      "first_relevant_rank": 2
+    },
+    {
+      "id": "planner_implementation",
+      "relevant_sequences": [
+        39
+      ],
+      "retrieved_sequences": [
+        39,
+        27,
+        2,
+        7,
+        28
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "async_execution_plan",
+      "relevant_sequences": [
+        40
+      ],
+      "retrieved_sequences": [
+        40,
+        29,
+        19,
+        14,
+        2
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "caching_and_performance",
+      "relevant_sequences": [
+        42,
+        43
+      ],
+      "retrieved_sequences": [
+        43,
+        45,
+        42,
+        4,
+        44
+      ],
+      "first_relevant_rank": 1
+    },
+    {
+      "id": "risk_mitigation",
+      "relevant_sequences": [
+        46
+      ],
+      "retrieved_sequences": [
+        46,
+        47,
+        13,
+        6,
+        12
+      ],
+      "first_relevant_rank": 1
+    }
+  ]
+}

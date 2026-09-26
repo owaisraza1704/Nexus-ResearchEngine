@@ -155,6 +155,7 @@ class CandidateResponse(BaseModel):
     chunk_id: UUID
     source_rank: int
     cosine_distance: float
+    ranking: dict = Field(default_factory=dict)
     selected: bool
 
 
@@ -361,6 +362,7 @@ def get_research_run(run_id: UUID, db: Session = Depends(get_db)) -> RunResponse
                 chunk_id=result.chunk_id,
                 source_rank=result.source_rank,
                 cosine_distance=result.score,
+                ranking=result.ranking,
                 selected=result.selected,
             )
             for result, pin in rows

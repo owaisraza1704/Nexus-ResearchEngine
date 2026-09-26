@@ -15,7 +15,7 @@ class RecordingSession:
         return self.source
 
 
-def test_evaluation_maps_lower_cosine_distance_to_a_better_run_score(
+def test_evaluation_uses_vector_search_order_for_metrics(
     monkeypatch,
 ) -> None:
     source_id = uuid4()
@@ -31,15 +31,25 @@ def test_evaluation_maps_lower_cosine_distance_to_a_better_run_score(
         ),
     )
 
-    def fake_retrieve_question(
+    monkeypatch.setattr(
+        retrieval_evaluation,
+        "embed_text",
+        lambda question, settings: SimpleNamespace(vector=(1.0, 0.0, 0.0)),
+    )
+
+    def fake_search_chunks(
         db,
-        question,
+        query_vector,
         source_ids,
         settings,
         *,
         top_k,
+        strategy,
+        question,
     ):
-        del db, question, source_ids, settings, top_k
+        assert query_vector == (1.0, 0.0, 0.0)
+        assert strategy == "vector" and question is None
+        del db, source_ids, settings, top_k
         return (
             RetrievedChunk(
                 chunk_id=uuid4(),
@@ -63,8 +73,8 @@ def test_evaluation_maps_lower_cosine_distance_to_a_better_run_score(
 
     monkeypatch.setattr(
         retrieval_evaluation,
-        "retrieve_question",
-        fake_retrieve_question,
+        "search_chunks",
+        fake_search_chunks,
     )
 
     result = retrieval_evaluation.evaluate_dataset(

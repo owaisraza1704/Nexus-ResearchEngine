@@ -45,7 +45,7 @@ export default function ResearchResult() {
         </Link>
         <div className="page-heading">
           <p className="eyebrow">{MODES[job.mode]}</p>
-          <StatusBadge status={job.status} />
+          <StatusBadge status={job.status} outcome={job.outcome} />
         </div>
         <h1>{job.question}</h1>
         <p className="run-identity">Run {job.job_id}</p>

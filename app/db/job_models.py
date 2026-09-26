@@ -1,4 +1,4 @@
-"""Local research workspaces and durable execution; queue delivery belongs to Procrastinate."""
+"""Local research workspaces, durable effects, and the Celery delivery outbox."""
 
 import uuid
 from datetime import datetime
@@ -30,6 +30,24 @@ class WorkspaceSource(Base):
     )
     source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sources.id"), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QueueDelivery(Base):
+    """Committed delivery intent; Redis messages carry only this row's identifier."""
+
+    __tablename__ = "queue_deliveries"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    celery_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), default=uuid.uuid4, unique=True
+    )
+    task_name: Mapped[str] = mapped_column(String(64))
+    args: Mapped[dict] = mapped_column(JSONB)
+    lock_key: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ResearchJob(Base):

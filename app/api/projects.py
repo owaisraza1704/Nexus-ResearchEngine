@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
@@ -15,10 +16,11 @@ from app.api.sources import _document_summary, get_source, get_source_chunks
 from app.config import Settings, get_settings
 from app.db.job_models import ResearchJob, WorkspaceSource
 from app.db.models import Document, DocumentChunk, Source, Workspace
+from app.db.research_models import ResearchResult
 from app.db.session import get_db
 from app.errors import NexusError
 from app.ingestion.artifacts import store_artifact
-from app.ingestion.docling_parser import UnsupportedDocumentType
+from app.ingestion.docling_parser import UnsupportedDocumentType, mime_type_for_path
 from app.jobs.contracts import JobMode
 from app.jobs.queue import enqueue
 
@@ -30,6 +32,7 @@ class Draft(BaseModel):
     question: str = Field(default="", max_length=4000)
     mode: JobMode = "agentic"
     top_k: int = Field(default=4, ge=1, le=20)
+    retrieval_strategy: Literal["vector", "hybrid"] = "hybrid"
     source_ids: list[UUID] = Field(default_factory=list, max_length=10)
     web_urls: list[str] = Field(default_factory=list, max_length=5)
 
@@ -87,8 +90,9 @@ def project_response(db: Session, project: Workspace) -> dict:
         if rows
         else {}
     )
-    runs = db.scalars(
-        select(ResearchJob)
+    runs = db.execute(
+        select(ResearchJob, ResearchResult.status)
+        .outerjoin(ResearchResult, ResearchResult.research_run_id == ResearchJob.run_id)
         .where(ResearchJob.workspace_id == project.id)
         .order_by(ResearchJob.created_at.desc())
     ).all()
@@ -124,10 +128,11 @@ def project_response(db: Session, project: Workspace) -> dict:
                 "question": run.question,
                 "mode": run.mode,
                 "status": run.status,
+                "outcome": outcome,
                 "created_at": run.created_at,
                 "completed_at": run.completed_at,
             }
-            for run in runs
+            for run, outcome in runs
         ],
     }
 
@@ -212,7 +217,9 @@ def upload_project_source(
     try:
         artifact = store_artifact(settings.artifact_store_path, filename, content)
     except UnsupportedDocumentType as exc:
-        raise NexusError("UNSUPPORTED_MEDIA_TYPE", "Upload a PDF or DOCX document.", 415) from exc
+        raise NexusError(
+            "UNSUPPORTED_MEDIA_TYPE", "Upload a PDF, DOC or DOCX document.", 415
+        ) from exc
     # A repeated upload attaches the existing content instead of making a second copy.
     db.execute(
         insert(Source)
@@ -375,7 +382,5 @@ def source_file(
         path,
         filename=source.original_filename,
         content_disposition_type="inline",
-        media_type="application/pdf"
-        if path.suffix == ".pdf"
-        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        media_type=mime_type_for_path(path),
     )

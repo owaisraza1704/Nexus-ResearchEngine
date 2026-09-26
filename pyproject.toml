@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "A source-grounded research engine."
 requires-python = ">=3.11"
 dependencies = [
+    "celery[redis]==5.6.3",
     "alembic>=1.13,<2",
     "docling>=2.129,<3",
     "torch>=2.2,<3",
@@ -21,12 +22,13 @@ dependencies = [
     "openai>=1,<2",
     "python-dotenv>=1,<2",
     "pgvector>=0.3,<1",
-    "procrastinate==3.10.0",
+    "procrastinate==3.10.0", # Historical migration 0009 only, not the runtime worker.
     "networkx>=3.4,<3.7",
     "httpx>=0.28,<1",
     "safehttpx==0.1.7",
     "trafilatura>=2.2,<3",
     "tiktoken>=0.8,<1",
+    "ranx==0.3.21",
 ]
 
 [project.optional-dependencies]

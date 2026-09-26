@@ -86,13 +86,17 @@ export default function Settings() {
                 <StatusBadge status={system.worker_count ? 'ready' : 'pending'} />
               </div>
               <p className="muted">
-                {system.worker_count} active worker process(es). Work is stored in PostgreSQL and
-                continues when the browser closes. Your machine and worker must remain running;
+                {system.worker_count} responding Celery worker node(s). Work is stored in PostgreSQL
+                and continues when the browser closes. Your machine and worker must remain running;
                 interrupted work resumes after restart.
               </p>
               <dl>
                 <dt>Deployment</dt>
                 <dd>Local, single owner</dd>
+                <dt>Task delivery</dt>
+                <dd>Celery with Redis as the message broker</dd>
+                <dt>Default retrieval</dt>
+                <dd>Hybrid: keyword search + vector search</dd>
                 <dt>Azure configuration</dt>
                 <dd>
                   {system.azure_configured
@@ -118,6 +122,7 @@ export default function Settings() {
                 <dt>Parser & chunker</dt>
                 <dd>
                   Docling with structural chunking. OCR is off; image-only PDFs need a text layer.
+                  Legacy DOC files are converted by LibreOffice; the original is retained.
                 </dd>
                 <dt>Sources per run</dt>
                 <dd>{system.max_sources} maximum</dd>
