@@ -1,47 +1,81 @@
-# Nexus Research Engine
+# Nexus — Agentic Research Engine
 
-Research often starts with a question and ends up scattered across documents, browser tabs, and disconnected conversations. The difficult part is keeping the context together: what was learned, which sources support it, and what still needs an answer.
+Nexus is a local research platform that turns selected documents and approved web pages into cited answers and reports.
 
-Nexus Research Engine is an evidence-first research platform that turns selected documents and approved web pages into cited answers, comparisons, and reports. Each investigation has its own workspace, keeping its question, sources, research runs, and findings together so you can inspect the evidence and return to the work later.
+![Nexus landing page showing the research interface and an evidence-linked answer](docs/images/nexus-landing-hero.png)
 
-Research as a connected story, not a collection of answers.
+## Project Overview
 
-![Nexus landing page with its dark theme, research introduction, and a preview connecting documents to evidence and a grounded answer](docs/images/nexus-landing-hero.png)
+Research across several sources is easy to lose track of: questions branch, evidence lives in different files, and conclusions become hard to verify. A single retrieve-and-answer pass can miss those separate aspects. Nexus keeps each investigation in a workspace, breaks complex questions into bounded tasks, and preserves the evidence behind its findings.
 
-## From a question to a report
+## Key Features
 
-Suppose you want to answer:
+- **Inputs:** Text-extractable PDF and DOCX, legacy DOC, and specific public HTTPS pages approved for each run.
+- **Research:** Focused answers, source comparison, multi-document synthesis, evidence-only search, and bounded agentic research with parallel retrieval tasks.
+- **Retrieval:** Azure embeddings with pgvector search, PostgreSQL keyword search, or their rank-fused hybrid.
+- **Traceability:** Saved source snapshots, exact-passage citations, source coverage, reported gaps, and exportable reports.
+- **Continuity:** Persistent jobs, task progress, cancellation, retries, and recovery after worker interruption.
 
-> Should we adopt Technology X for our existing system?
+## System Architecture
 
-You can bring in architecture documents, evaluation reports, and specific public web pages, then investigate the question within that selected material:
+```mermaid
+flowchart LR
+    ui["Next.js UI"] --> api["FastAPI API"]
+    api -->|"save jobs and sources"| pg["PostgreSQL + pgvector"]
+    beat["Celery Beat"] -.->|"schedule dispatch"| redis["Redis broker"]
+    redis -.->|"deliver task IDs"| worker["Celery workers"]
+    worker -->|"read outbox and store results"| pg
+    worker -.->|"publish committed work"| redis
+    worker -.->|"embeddings and generation"| azure["Azure OpenAI"]
+    worker -.->|"approved fetches"| web["Public HTTPS pages"]
+```
 
-1. **Create a research workspace.** Give the investigation a name, save a draft question, and keep its sources and results separate from other topics.
-2. **Choose your sources.** Upload text-extractable PDF, DOCX, or legacy DOC files, attach existing documents, or explicitly approve public HTTPS pages for the run.
-3. **Run the research.** Choose a focused answer, comparison, synthesis, evidence search, or an agentic investigation. Follow the actual tasks and progress, or cancel the run.
-4. **Inspect the findings.** Open citations to their exact saved passages, review which sources contributed, and examine reported gaps and possible contradictions.
-5. **Keep and reuse the result.** Reopen saved reports, export Markdown or JSON, and record your own quality ratings and notes.
+PostgreSQL stores parsed source text, vectors, plans, task state, results, and the delivery outbox; original uploads live in a local artifact volume. Redis carries Celery messages, not document text or cached prompts.
 
-Document processing and research run in the background through Celery workers. Closing the browser does not stop accepted work while the local backend and worker remain running. Independent research questions can run in parallel; hybrid retrieval combines keyword matches with semantic vector search before the evidence is brought together into a report.
+## How It Works
 
-## Ways to research
+1. **Intake:** Create a workspace, upload documents, and optionally approve exact web URLs. Parsed content is chunked, embedded, and saved as source snapshots.
+2. **Plan:** Agentic mode proposes one to three focused retrieval questions; other modes use fixed plans. The server validates task types, dependencies, source scope, and budgets.
+3. **Execute:** Celery runs independent retrieval branches in parallel. Each searches the pinned sources with vector or hybrid retrieval; hybrid fuses vector and keyword ranks.
+4. **Synthesize:** Evidence is joined within context limits, then the LLM drafts a structured answer with citations, source coverage, and gaps. Citation references are checked against saved passages.
+5. **Inspect:** Reopen the result, follow citations to exact passages, inspect the evidence graph, and export Markdown or JSON.
 
-| Mode                     | What it does                                                                                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Grounded Answer          | Answers a question from one selected source, with citations.                                                          |
-| Compare Sources          | Compares two or more sources, preserving attribution and highlighting possible disagreements.                         |
-| Multi-Document Synthesis | Brings complementary findings from multiple sources into one structured result.                                       |
-| Evidence Only            | Returns relevant passages and source locations without generating an answer.                                          |
-| Agentic Research         | Plans one to three focused retrieval questions, gathers evidence, and synthesizes a cited result within fixed limits. |
+## Agent Architecture
 
-Agentic research is bounded: the system validates the plan before running it, and the model cannot add arbitrary tools or expand the approved source scope.
+Nexus has a **bounded planner and task graph**, not a swarm of autonomous agents. The planner can propose approved fetch, retrieval, evidence, synthesis, and validation tasks; Pydantic and NetworkX validate the graph before Celery executes it. Tasks communicate through persisted PostgreSQL state, with retries and failure outcomes kept visible.
 
-## Evidence you can inspect
+## RAG / Retrieval Architecture
 
-Nexus keeps the material behind a result accessible through its source inspector, evidence explorer, and source–evidence–claim graph. Saved citations refer to the document snapshot used for that run, so an older finding remains traceable.
+Docling parses and chunks PDF/DOCX; LibreOffice converts legacy DOC to DOCX first. Approved web pages are extracted and snapshotted. Azure OpenAI creates embeddings; pgvector ranks semantic matches, while PostgreSQL full-text search ranks keyword matches. The optional hybrid strategy combines those lists with reciprocal rank fusion (`ranx`) before source-scoped context construction. **BM25 and a separate reranker are not implemented.**
 
-Results include source coverage, reported gaps, and candidate contradictions. Citation checks verify references and saved passages; they do not guarantee that a model's interpretation is correct. The evaluation screen separates execution statistics from your own assessments of relevance, grounding, and citation quality.
+## Distributed Execution
 
-Nexus is intended for your local machine, using your configured Azure deployments for embeddings and generation. Web content comes from pages you explicitly approve, not autonomous web search. Redis is used for Celery messages only; prompt caching is not implemented.
+The API records a job and its delivery intent in one PostgreSQL transaction. Celery Beat triggers outbox dispatch through Redis; workers execute tasks with two slots by default. Persisted attempts and recovery let accepted work continue after a worker interruption or browser close while the local stack is running. Delivery is at least once, so a crash may repeat an external model call without duplicating a saved logical result.
 
-See [local setup and workflow](docs/mvp3.md) for running the product and [performance verification](docs/performance.md) for what has actually been measured.
+## Technical Architecture / Engineering Decisions
+
+FastAPI provides typed API contracts; Celery/Redis let research continue after the HTTP request ends. PostgreSQL/pgvector keeps jobs, evidence, keyword indexes, and vectors together. Hybrid search combines exact-word and semantic signals, although the labeled evaluation below currently favors vector-only. Immutable snapshots keep older citations inspectable. This is a **single-user local deployment**, not hosted multi-tenant infrastructure or autonomous web search.
+
+## Tech Stack
+
+- **Frontend / API:** Next.js, React; Python, FastAPI, Pydantic.
+- **Planning / models:** Azure OpenAI, NetworkX; no separate agent framework.
+- **Ingestion / retrieval:** Docling, LibreOffice, Trafilatura, PostgreSQL full-text search, pgvector, `ranx`.
+- **Execution / local runtime:** Celery, Redis, PostgreSQL outbox, Docker Compose.
+
+## Evaluation
+
+On 20 labeled questions over one 55-chunk architecture PDF, vector-only retrieval outperformed the current hybrid ranking:
+
+| Metric | Vector | Hybrid |
+| --- | ---: | ---: |
+| Recall@5 | 0.9317 | 0.8300 |
+| nDCG@5 | 0.8896 | 0.7115 |
+
+Citation checks verify saved excerpts and locators, **not** the truth of every generated claim. The UI supports human review; a representative answer-faithfulness benchmark has not yet been run.
+
+## Performance / Results
+
+Across 16 measured jobs in two local batches on synthetic PDF/DOCX sources, parallel execution showed **48.7% shorter median retrieval-task wall time** than a one-task limit (3.314 s vs 1.699 s). Complete-report time did **not** improve consistently: the first batch was 14.82% faster, while the second was 2.52% slower. These small, varying-plan runs do not establish a 50% report speedup. There is no prompt cache or measured 35% token reduction. See the [methods and raw results](docs/performance.md).
+
+
